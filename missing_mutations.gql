@@ -1,0 +1,355 @@
+mutation CreateCoordinator(
+  $firebaseUID: String!
+  $fullName: String!
+  $countryCode: String!
+  $phoneNumber: String!
+  $email: String
+  $gender: String
+  $employeeId: String!
+  $joiningYear: Int!
+  $branchCode: String!
+  $serialNumber: Int!
+  $branchId: UUID!
+  $wing: String!
+) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {firebaseUID: {eq_expr: "auth.uid"}, isActive: {eq: true}}
+      limit: 1
+    ) @check(expr: "this.exists(u, (u.role == 'PRINCIPAL' || u.role == 'principal') && u.branchId == vars.branchId)", message: "Principal for this branch required") {
+      id
+      role
+      branchId
+    }
+    activeCoordinators: coordinators(
+      where: {branchId: {eq: $branchId}, wing: {eq: $wing}, isActive: {eq: true}}
+      limit: 1
+    ) @check(expr: "!this.exists(c, true)", message: "This wing already has an active coordinator") {
+      id
+    }
+  }
+  employeeSequence_upsert(
+    data: {
+      year: $joiningYear
+      branchCode: $branchCode
+      lastSequence: $serialNumber
+      updatedAt_expr: "request.time"
+    }
+  )
+  staffIdSequence_upsert(
+    data: {
+      joiningYear: $joiningYear
+      branchCode: $branchCode
+      lastSerialNumber: $serialNumber
+      updatedAt_expr: "request.time"
+    }
+  )
+  user_insert(
+    data: {
+      firebaseUID: $firebaseUID
+      fullName: $fullName
+      countryCode: $countryCode
+      phoneNumber: $phoneNumber
+      role: "COORDINATOR"
+      employeeId: $employeeId
+      branch: {id: $branchId}
+      isActive: true
+      updatedAt_expr: "request.time"
+    }
+  )
+  coordinator_insert(
+    data: {
+      userId_expr: "response.user_insert.id"
+      branch: {id: $branchId}
+      wing: $wing
+      email: $email
+      gender: $gender
+      employeeId: $employeeId
+      isActive: true
+      updatedAt_expr: "request.time"
+    }
+  )
+}
+
+mutation CreateTeacher(
+  $firebaseUID: String!
+  $fullName: String!
+  $countryCode: String!
+  $phoneNumber: String!
+  $alternateMobileNumber: String
+  $email: String
+  $dateOfBirth: Date
+  $gender: String! = "Other"
+  $joiningDate: Date! = "2026-01-01"
+  $designation: String! = "Teacher"
+  $qualification: String
+  $experience: String
+  $address: String
+  $city: String
+  $state: String
+  $pincode: String
+  $emergencyContact: String
+  $bloodGroup: String
+  $employeeId: String!
+  $joiningYear: Int!
+  $branchCode: String!
+  $serialNumber: Int!
+  $branchId: UUID!
+  $wing: String! = "PRIMARY"
+) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {firebaseUID: {eq_expr: "auth.uid"}, isActive: {eq: true}}
+      limit: 1
+    ) @check(expr: "this.exists(u, ((u.role == 'BRANCH_ADMIN' || u.role == 'branch_admin' || u.role == 'PRINCIPAL' || u.role == 'principal' || u.role == 'COORDINATOR' || u.role == 'coordinator') && u.branchId == vars.branchId) || u.role == 'MAIN_ADMIN' || u.role == 'main_admin')", message: "Branch staff management access required") {
+      id
+      role
+      branchId
+    }
+  }
+  employeeSequence_upsert(
+    data: {
+      year: $joiningYear
+      branchCode: $branchCode
+      lastSequence: $serialNumber
+      updatedAt_expr: "request.time"
+    }
+  )
+  staffIdSequence_upsert(
+    data: {
+      joiningYear: $joiningYear
+      branchCode: $branchCode
+      lastSerialNumber: $serialNumber
+      updatedAt_expr: "request.time"
+    }
+  )
+  user_insert(
+    data: {
+      firebaseUID: $firebaseUID
+      fullName: $fullName
+      countryCode: $countryCode
+      phoneNumber: $phoneNumber
+      role: "TEACHER"
+      employeeId: $employeeId
+      branch: {id: $branchId}
+      isActive: true
+      updatedAt_expr: "request.time"
+    }
+  )
+  teacher_insert(
+    data: {
+      userId_expr: "response.user_insert.id"
+      employeeId: $employeeId
+      branch: {id: $branchId}
+      wing: $wing
+      joiningDate: $joiningDate
+      designation: $designation
+      gender: $gender
+      alternateMobileNumber: $alternateMobileNumber
+      email: $email
+      dateOfBirth: $dateOfBirth
+      qualification: $qualification
+      experience: $experience
+      address: $address
+      city: $city
+      state: $state
+      pincode: $pincode
+      emergencyContact: $emergencyContact
+      bloodGroup: $bloodGroup
+      isActive: true
+      updatedAt_expr: "request.time"
+    }
+  )
+}
+
+mutation AssignTeacherClassTeacher(
+  $sectionId: UUID!
+  $teacherId: UUID!
+  $teacherUserId: UUID!
+  $branchId: UUID!
+) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {firebaseUID: {eq_expr: "auth.uid"}, isActive: {eq: true}}
+      limit: 1
+    ) @check(expr: "this.exists(u, ((u.role == 'PRINCIPAL' || u.role == 'principal' || u.role == 'COORDINATOR' || u.role == 'coordinator') && u.branchId == vars.branchId) || u.role == 'MAIN_ADMIN' || u.role == 'main_admin')", message: "Class teacher assignment access required") {
+      id
+      role
+      branchId
+    }
+    teacherSectionAssignments(
+      where: {teacherId: {eq: $teacherId}, isClassTeacher: {eq: true}, isActive: {eq: true}}
+      limit: 1
+    ) @check(expr: "!this.exists(s, true)", message: "Teacher is already assigned as a class teacher") {
+      id
+    }
+    currentSectionTeacher: teacherSectionAssignments(
+      where: {sectionId: {eq: $sectionId}, isClassTeacher: {eq: true}, isActive: {eq: true}}
+      limit: 1
+    ) @check(expr: "!this.exists(s, true)", message: "This section already has a class teacher") {
+      id
+    }
+  }
+  teacherSectionAssignment_insert(
+    data: {
+      teacher: {id: $teacherId}
+      section: {id: $sectionId}
+      isClassTeacher: true
+      isActive: true
+      updatedAt_expr: "request.time"
+    }
+  )
+  section_update(
+    id: $sectionId
+    data: {
+      classTeacher: {id: $teacherUserId}
+      updatedAt_expr: "request.time"
+    }
+  )
+}
+
+mutation UpdateTeacher(
+  $teacherId: UUID!
+  $userId: UUID!
+  $fullName: String!
+  $countryCode: String!
+  $phoneNumber: String!
+  $alternateMobileNumber: String
+  $email: String
+  $dateOfBirth: Date
+  $gender: String!
+  $joiningDate: Date!
+  $designation: String!
+  $qualification: String
+  $experience: String
+  $address: String
+  $city: String
+  $state: String
+  $pincode: String
+  $emergencyContact: String
+  $bloodGroup: String
+  $branchId: UUID!
+  $wing: String!
+  $isActive: Boolean!
+) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {firebaseUID: {eq_expr: "auth.uid"}, isActive: {eq: true}}
+      limit: 1
+    ) @check(expr: "this.exists(u, ((u.role == 'BRANCH_ADMIN' || u.role == 'branch_admin' || u.role == 'PRINCIPAL' || u.role == 'principal' || u.role == 'COORDINATOR' || u.role == 'coordinator') && u.branchId == vars.branchId) || u.role == 'MAIN_ADMIN' || u.role == 'main_admin')", message: "Branch staff management access required") {
+      id
+      role
+      branchId
+    }
+  }
+  user_update(
+    id: $userId
+    data: {
+      fullName: $fullName
+      countryCode: $countryCode
+      phoneNumber: $phoneNumber
+      isActive: $isActive
+      updatedAt_expr: "request.time"
+    }
+  )
+  teacher_update(
+    id: $teacherId
+    data: {
+      wing: $wing
+      joiningDate: $joiningDate
+      designation: $designation
+      gender: $gender
+      alternateMobileNumber: $alternateMobileNumber
+      email: $email
+      dateOfBirth: $dateOfBirth
+      qualification: $qualification
+      experience: $experience
+      address: $address
+      city: $city
+      state: $state
+      pincode: $pincode
+      emergencyContact: $emergencyContact
+      bloodGroup: $bloodGroup
+      isActive: $isActive
+      updatedAt_expr: "request.time"
+    }
+  )
+}
+
+mutation AssignClassTeacher($sectionId: UUID!, $teacherId: UUID!) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {firebaseUID: {eq_expr: "auth.uid"}, isActive: {eq: true}}
+      limit: 1
+    ) @check(expr: "this.exists(u, u.role == 'PRINCIPAL' || u.role == 'principal')", message: "Principal required") {
+      id
+      role
+    }
+    sections(
+      where: {classTeacherId: {eq: $teacherId}, isActive: {eq: true}}
+      limit: 1
+    ) @check(expr: "!this.exists(s, true)", message: "Teacher is already assigned as a class teacher") {
+      id
+    }
+  }
+  section_update(
+    id: $sectionId
+    data: {
+      classTeacher: {id: $teacherId}
+      updatedAt_expr: "request.time"
+    }
+  )
+}
+
+mutation CreateSubject($name: String!, $code: String!, $status: String! = "ACTIVE") @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {firebaseUID: {eq_expr: "auth.uid"}, isActive: {eq: true}}
+      limit: 1
+    ) @check(expr: "this.exists(u, u.role == 'PRINCIPAL' || u.role == 'principal' || u.role == 'MAIN_ADMIN' || u.role == 'main_admin')", message: "Principal required") {
+      id
+      role
+    }
+  }
+  subject_insert(
+    data: {
+      name: $name
+      code: $code
+      status: $status
+      updatedAt_expr: "request.time"
+    }
+  )
+}
+
+mutation AssignTeacherSubject($teacherId: UUID!, $subjectId: UUID!, $branchId: UUID!) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {firebaseUID: {eq_expr: "auth.uid"}, isActive: {eq: true}}
+      limit: 1
+    ) @check(expr: "this.exists(u, ((u.role == 'PRINCIPAL' || u.role == 'principal' || u.role == 'COORDINATOR' || u.role == 'coordinator') && u.branchId == vars.branchId) || u.role == 'MAIN_ADMIN' || u.role == 'main_admin')", message: "Subject assignment access required") {
+      id
+      role
+      branchId
+    }
+  }
+  teacherSubject_insert(
+    data: {
+      teacher: {id: $teacherId}
+      subject: {id: $subjectId}
+    }
+  )
+}
+
+mutation ClearTeacherSubjects($teacherId: UUID!, $branchId: UUID!) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {firebaseUID: {eq_expr: "auth.uid"}, isActive: {eq: true}}
+      limit: 1
+    ) @check(expr: "this.exists(u, ((u.role == 'PRINCIPAL' || u.role == 'principal' || u.role == 'COORDINATOR' || u.role == 'coordinator') && u.branchId == vars.branchId) || u.role == 'MAIN_ADMIN' || u.role == 'main_admin')", message: "Subject assignment access required") {
+      id
+      role
+      branchId
+    }
+  }
+  teacherSubject_deleteMany(where: {teacherId: {eq: $teacherId}})
+}

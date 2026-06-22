@@ -1,0 +1,13 @@
+<USER_REQUEST>
+Data Connect Request Failed. Response Status: 404
+dataConnectClient.js:54 Data Connect Error Payload: {
+  "error": {
+    "code": 404,
+    "message": "operation \"AssignTeacherClassTeacher\" not found",
+    "status": "NOT_FOUND"
+  }
+}
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-08T12:51:56+05:30.
+</ADDITIONAL_METADATA>
