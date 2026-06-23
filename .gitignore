@@ -128,9 +128,23 @@ yarn-error.log
 *google-services.json
 
 # Local and System Generated
+.agents/
 .agents\skills
 
 *skills-lock.json
+
+# Scratch / debug scripts
+scratch/
+
+# Temp and debug files
+diff.txt
+raw_user_prompt.txt
+missing_mutations.gql
+old_mutations.gql
+restored_mutations.gql
+optimize.js
+window_dump.xml
+logo.png/
 
 .bundle/
 
