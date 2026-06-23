@@ -23,6 +23,8 @@ import {
 import attendanceService from '../../services/attendance/attendanceService';
 import holidayService from '../../services/holidays/holidayService';
 import parentService from '../../services/parents/parentService';
+import VoiceAnnouncementButton from '../../components/common/VoiceAnnouncementButton';
+import {TELUGU} from '../../services/tts/teluguTemplates';
 import {colors, radius, shadows, spacing} from '../../theme';
 import {normalizeAttendanceStatus} from '../../utils/helpers/attendanceHelpers';
 
@@ -327,6 +329,15 @@ const ParentAttendanceScreen = () => {
             </View>
           ) : null}
         </View>
+        {selectedChild ? (
+          <VoiceAnnouncementButton
+            text={TELUGU.attendanceAlert(
+              selectedChild.fullName,
+              ayPct != null ? ayPct : summary.percentage,
+            )}
+            size={18}
+          />
+        ) : null}
       </Animated.View>
 
       {/* Stats pills */}

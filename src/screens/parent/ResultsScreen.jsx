@@ -10,12 +10,14 @@ import {EXAM_TYPE_LABELS} from '../../config/constants';
 import {selectActiveAcademicYear} from '../../store/slices/authSlice';
 import marksService, {computeGrade} from '../../services/marks/marksService';
 import PerformanceBar from '../../components/marks/PerformanceBar';
+import VoiceAnnouncementButton from '../../components/common/VoiceAnnouncementButton';
+import {TELUGU} from '../../services/tts/teluguTemplates';
 import {colors, radius, shadows, spacing, typography} from '../../theme';
 import UserMenuDrawer from '../../components/common/UserMenuDrawer';
 
-const ResultCard = ({examSection, studentId, onPress, delay}) => {
+const ResultCard = ({examSection, studentId, studentName, onPress, delay}) => {
   const exam = examSection?.exam;
-  const color = colors.info;
+  const teluguText = TELUGU.resultsPublished(studentName || '', exam?.name || '');
   return (
     <Animated.View entering={FadeInRight.delay(delay).duration(220).springify()}>
       <Pressable onPress={onPress} style={({pressed}) => [styles.card, pressed && {opacity: 0.88}]}>
@@ -24,7 +26,10 @@ const ResultCard = ({examSection, studentId, onPress, delay}) => {
             <Text style={styles.examName} numberOfLines={1}>{exam?.name || '—'}</Text>
             <Text style={styles.examType}>{EXAM_TYPE_LABELS[exam?.examType] || exam?.examType || ''}</Text>
           </View>
-          <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textSoft} />
+          <View style={styles.cardRight}>
+            <VoiceAnnouncementButton text={teluguText} size={16} />
+            <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textSoft} />
+          </View>
         </View>
         {exam?.startDate ? (
           <View style={styles.metaItem}>
@@ -59,6 +64,7 @@ const ResultsScreen = ({navigation}) => {
     <ResultCard
       examSection={item}
       studentId={studentId}
+      studentName={student?.fullName || ''}
       delay={index * 40}
       onPress={() =>
         navigation.navigate('ResultDetails', {
@@ -148,6 +154,7 @@ const styles = StyleSheet.create({
   },
   cardTop: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm},
   cardLeft: {flex: 1},
+  cardRight: {alignItems: 'center', flexDirection: 'row', gap: spacing.sm},
   examName: {...typography.heading, color: colors.text, fontSize: 15},
   examType: {...typography.caption, color: colors.textSoft, marginTop: 2},
   metaItem: {flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.xs},

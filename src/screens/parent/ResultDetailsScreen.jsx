@@ -13,6 +13,8 @@ import reportCardService from '../../services/marks/reportCardService';
 import SubjectResultRow from '../../components/marks/SubjectResultRow';
 import GradeChip from '../../components/marks/GradeChip';
 import PerformanceBar from '../../components/marks/PerformanceBar';
+import VoiceAnnouncementButton from '../../components/common/VoiceAnnouncementButton';
+import {TELUGU} from '../../services/tts/teluguTemplates';
 import {colors, radius, shadows, spacing, typography} from '../../theme';
 
 const ResultDetailsScreen = ({navigation, route}) => {
@@ -73,6 +75,11 @@ const ResultDetailsScreen = ({navigation, route}) => {
 
   const {grade, gradeLabel, percentage, totalObtained, totalMax, subjectRows} = data;
   const passColor = percentage >= 40 ? colors.success : colors.danger;
+  const teluguText = TELUGU.marksPublished(
+    data.student?.fullName || '',
+    examName || '',
+    `${totalObtained} / ${totalMax}`,
+  );
 
   return (
     <View style={[styles.root, {paddingTop: insets.top}]}>
@@ -85,16 +92,19 @@ const ResultDetailsScreen = ({navigation, route}) => {
           <Text style={styles.topTitle} numberOfLines={1}>{examName || 'Result'}</Text>
           <Text style={styles.topSub}>{data.student?.fullName}</Text>
         </View>
-        <Pressable
-          onPress={handleDownloadReportCard}
-          disabled={downloading}
-          style={styles.dlBtn}>
-          {downloading ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <MaterialCommunityIcons name="download-outline" size={20} color={colors.primary} />
-          )}
-        </Pressable>
+        <View style={styles.topActions}>
+          <VoiceAnnouncementButton text={teluguText} size={18} />
+          <Pressable
+            onPress={handleDownloadReportCard}
+            disabled={downloading}
+            style={styles.dlBtn}>
+            {downloading ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <MaterialCommunityIcons name="download-outline" size={20} color={colors.primary} />
+            )}
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, {paddingBottom: insets.bottom + 32}]}>
@@ -181,6 +191,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
   backBtn: {padding: 4},
+  topActions: {alignItems: 'center', flexDirection: 'row', gap: spacing.sm},
   dlBtn: {padding: 4},
   headerCenter: {flex: 1, alignItems: 'center'},
   topTitle: {...typography.heading, color: colors.text, fontSize: 15},

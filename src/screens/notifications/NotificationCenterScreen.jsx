@@ -14,6 +14,8 @@ import Animated, {FadeInDown, FadeInRight} from 'react-native-reanimated';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import {useSelector} from 'react-redux';
 import notificationService from '../../services/notifications/notificationService';
+import VoiceAnnouncementButton from '../../components/common/VoiceAnnouncementButton';
+import {TELUGU} from '../../services/tts/teluguTemplates';
 import {colors, radius, shadows, spacing, typography} from '../../theme';
 
 const ICON_MAP = {
@@ -62,6 +64,7 @@ const canDeleteNotification = (notification, currentUser) => {
 // ─── Notification Card ────────────────────────────────────────────────────────
 const NotificationItem = ({item, onPress, onDeleteRequest, showDelete, index}) => {
   const iconProps = getIconProps(item.title);
+  const teluguText = TELUGU.notification(item.title, item.message);
   return (
     <Animated.View entering={FadeInRight.delay(index * 40).duration(350).springify()}>
       <Pressable
@@ -90,6 +93,7 @@ const NotificationItem = ({item, onPress, onDeleteRequest, showDelete, index}) =
             </View>
             <View style={styles.notifActions}>
               <Text style={styles.notifTime}>{formatTime(item.createdAt)}</Text>
+              <VoiceAnnouncementButton text={teluguText} size={16} />
               {showDelete && (
                 <Pressable
                   onPress={() => onDeleteRequest(item)}

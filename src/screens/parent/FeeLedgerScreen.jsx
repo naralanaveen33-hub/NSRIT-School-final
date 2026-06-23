@@ -10,6 +10,8 @@ import parentService from '../../services/parents/parentService';
 import {formatCurrency} from '../../utils/formatters/currency';
 import {formatDateForDisplay} from '../../utils/helpers/dateHelpers';
 import {generateAndShareReceipt} from '../../utils/pdf/receiptGenerator';
+import VoiceAnnouncementButton from '../../components/common/VoiceAnnouncementButton';
+import {TELUGU} from '../../services/tts/teluguTemplates';
 import {colors, radius, shadows, spacing, typography} from '../../theme';
 
 const isActivePayment = payment =>
@@ -224,11 +226,19 @@ const ChildFeeSection = ({child}) => {
               </Text>
             ) : null}
           </View>
+          <VoiceAnnouncementButton
+            text={TELUGU.feeDue(child.fullName, totalDue)}
+            size={18}
+          />
         </View>
       ) : (
         <View style={styles.clearedBanner}>
           <MaterialCommunityIcons name="check-circle" size={20} color={colors.success} />
           <Text style={styles.clearedBannerText}>All fees cleared. Thank you!</Text>
+          <VoiceAnnouncementButton
+            text={TELUGU.feePaid(child.fullName)}
+            size={18}
+          />
         </View>
       )}
 

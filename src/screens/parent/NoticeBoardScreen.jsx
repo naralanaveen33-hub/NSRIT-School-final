@@ -8,6 +8,8 @@ import {useQuery} from '@tanstack/react-query';
 import {useSelector} from 'react-redux';
 import {EmptyState} from '../../components';
 import noticesService from '../../services/notices/noticesService';
+import VoiceAnnouncementButton from '../../components/common/VoiceAnnouncementButton';
+import {TELUGU} from '../../services/tts/teluguTemplates';
 import {colors, radius, shadows, spacing, typography} from '../../theme';
 
 const CATEGORIES = ['All', 'Academic', 'Fee', 'Holiday', 'Event', 'Urgent'];
@@ -30,6 +32,13 @@ const formatDate = dateStr => {
   } catch {
     return dateStr;
   }
+};
+
+const buildNoticeTeluguText = notice => {
+  if (notice.category === 'Holiday') {
+    return TELUGU.holidayAnnouncement(notice.title, notice.date || '');
+  }
+  return TELUGU.schoolAnnouncement(notice.title);
 };
 
 const NoticeCard = ({notice, index}) => {
@@ -73,13 +82,16 @@ const NoticeCard = ({notice, index}) => {
             />
             <Text style={styles.noticeAuthorText}>{notice.author}</Text>
           </View>
-          <View style={styles.expandBtn}>
-            <MaterialCommunityIcons
-              name={expanded ? 'chevron-up' : 'chevron-down'}
-              size={14}
-              color={colors.primary}
-            />
-            <Text style={styles.expandText}>{expanded ? 'Less' : 'Read more'}</Text>
+          <View style={styles.noticeMetaRight}>
+            <VoiceAnnouncementButton text={buildNoticeTeluguText(notice)} size={16} />
+            <View style={styles.expandBtn}>
+              <MaterialCommunityIcons
+                name={expanded ? 'chevron-up' : 'chevron-down'}
+                size={14}
+                color={colors.primary}
+              />
+              <Text style={styles.expandText}>{expanded ? 'Less' : 'Read more'}</Text>
+            </View>
           </View>
         </View>
       </Pressable>
@@ -319,6 +331,7 @@ const styles = StyleSheet.create({
   },
   noticeAuthor: {alignItems: 'center', flex: 1, flexDirection: 'row', gap: 4},
   noticeAuthorText: {color: colors.textMuted, fontSize: 11, fontWeight: '600'},
+  noticeMetaRight: {alignItems: 'center', flexDirection: 'row', gap: spacing.sm},
   expandBtn: {alignItems: 'center', flexDirection: 'row', gap: 2},
   expandText: {color: colors.primary, fontSize: 11, fontWeight: '700'},
 });
