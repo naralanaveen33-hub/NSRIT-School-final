@@ -1,4 +1,4 @@
-import {USER_ROLES} from '../../config/constants';
+import {ROLE_LABELS, USER_ROLES} from '../../config/constants';
 import {formatE164PhoneNumber, normalizePhoneNumber} from '../../utils/phone';
 import dataConnectClient from '../dataconnect/dataConnectClient';
 import {DATA_CONNECT_MUTATIONS, DATA_CONNECT_QUERIES} from '../dataconnect/operations';
@@ -507,6 +507,38 @@ const mainAdminService = {
   },
 
   async createAndAssignPrincipal(payload) {
+    const fullPhoneNumber = formatE164PhoneNumber({
+      countryCode: payload.countryCode || '+91',
+      phoneNumber: payload.phoneNumber,
+    });
+
+    const existingUser = await this.findUserByPhone(fullPhoneNumber);
+
+    if (existingUser) {
+      // Only an existing PRINCIPAL account can be reassigned to a branch.
+      // Any other role is a data conflict the caller must resolve manually.
+      if (existingUser.role !== USER_ROLES.PRINCIPAL) {
+        const roleLabel = ROLE_LABELS[existingUser.role] || existingUser.role;
+        throw new Error(
+          `This phone number is already registered as ${roleLabel}. Only existing principal accounts can be reassigned to a branch.`,
+        );
+      }
+
+      // Existing principal found — skip creation and assign directly.
+      const staffId = await StaffIdService.getNextStaffId({
+        branchId: payload.branchId,
+        staffType: 'TEACHING',
+      });
+      await this.assignPrincipal({
+        branchId: payload.branchId,
+        userId: existingUser.id,
+        staffId,
+        allowMultipleAssignments: true,
+      });
+      return {...existingUser, ...staffId, isExistingUser: true};
+    }
+
+    // No existing user — create then assign (original flow).
     const staffId = await StaffIdService.getNextStaffId({
       branchId: payload.branchId,
       staffType: 'TEACHING',
@@ -523,7 +555,7 @@ const mainAdminService = {
       staffId,
       allowMultipleAssignments: true,
     });
-    return {...user, ...staffId};
+    return {...user, ...staffId, isExistingUser: false};
   },
 
   async getGlobalClasses({filters = {}, searchText = '', forceRefresh = false} = {}) {

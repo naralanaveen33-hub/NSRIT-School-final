@@ -109,6 +109,7 @@ export const DATA_CONNECT_QUERIES = {
   // Timetable
   GET_TIMETABLE_FOR_SECTION: 'GetTimetableForSection',
   GET_TIMETABLES_FOR_BRANCH: 'GetTimetablesForBranch',
+  GET_TIMETABLES_FOR_WING: 'GetTimetablesForWing',
   GET_TIMETABLE_FOR_TEACHER: 'GetTimetableForTeacher',
   // Suggestions
   GET_SUGGESTIONS_BY_PARENT: 'GetSuggestionsByParent',
@@ -118,6 +119,15 @@ export const DATA_CONNECT_QUERIES = {
   GET_UNREAD_NOTIFICATION_COUNT: 'GetUnreadNotificationCount',
   GET_BRANCH_STAFF_USER_IDS: 'GetBranchStaffUserIds',
   GET_BRANCH_STUDENTS_WITH_PARENTS: 'GetBranchStudentsWithParents',
+  // Marks Management
+  GET_EXAMS_BY_BRANCH: 'GetExamsByBranch',
+  GET_EXAM_DETAILS: 'GetExamDetails',
+  GET_MARKS_FOR_SECTION: 'GetMarksForSection',
+  GET_STUDENT_RESULTS_FOR_PARENT: 'GetStudentResultsForParent',
+  GET_STUDENT_RESULT_DETAIL: 'GetStudentResultDetail',
+  GET_EXAM_ANALYTICS: 'GetExamAnalytics',
+  GET_PUBLISHED_EXAMS_FOR_SECTION: 'GetPublishedExamsForSection',
+  GET_EXAMS_BY_SECTION: 'GetExamsBySection',
 };
 
 export const DATA_CONNECT_MUTATIONS = {
@@ -191,7 +201,10 @@ export const DATA_CONNECT_MUTATIONS = {
   TOGGLE_NOTICE_PIN: 'ToggleNoticePin',
   // Timetable
   UPSERT_TIMETABLE_PERIOD: 'UpsertTimetablePeriod',
+  UPSERT_TIMETABLE_PERIOD_FULL: 'UpsertTimetablePeriodFull',
   CLEAR_TIMETABLE_FOR_SECTION: 'ClearTimetableForSection',
+  PUBLISH_TIMETABLE_SECTION: 'PublishTimetableSection',
+  UNPUBLISH_TIMETABLE_SECTION: 'UnpublishTimetableSection',
   // Suggestions
   CREATE_SUGGESTION: 'CreateSuggestion',
   RESPOND_TO_SUGGESTION: 'RespondToSuggestion',
@@ -200,6 +213,17 @@ export const DATA_CONNECT_MUTATIONS = {
   MARK_NOTIFICATION_READ: 'MarkNotificationRead',
   MARK_ALL_NOTIFICATIONS_READ: 'MarkAllNotificationsRead',
   DELETE_NOTIFICATION: 'DeleteNotification',
+  // Marks Management
+  CREATE_EXAM: 'CreateExam',
+  UPDATE_EXAM: 'UpdateExam',
+  ARCHIVE_EXAM: 'ArchiveExam',
+  DELETE_EXAM: 'DeleteExam',
+  ADD_EXAM_SECTION: 'AddExamSection',
+  UPSERT_EXAM_SUBJECT_CONFIG: 'UpsertExamSubjectConfig',
+  UPSERT_STUDENT_MARK: 'UpsertStudentMark',
+  PUBLISH_EXAM_SECTION: 'PublishExamSection',
+  UNPUBLISH_EXAM_SECTION: 'UnpublishExamSection',
+  RECORD_MARKS_AUDIT_LOG: 'RecordMarksAuditLog',
   // Academic Year
   CREATE_ACADEMIC_YEAR: 'CreateAcademicYear',
   UPDATE_ACADEMIC_YEAR: 'UpdateAcademicYear',

@@ -3647,6 +3647,162 @@ mutation ClearTimetableForSection($sectionId: UUID!, $branchId: UUID!) @auth(lev
   timetablePeriod_deleteMany(where: {sectionId: {eq: $sectionId}})
 }
 
+# UpsertTimetablePeriodFull — extended version allowing coordinator + all new fields
+mutation UpsertTimetablePeriodFull(
+  $sectionId: UUID!
+  $branchId: UUID!
+  $day: String!
+  $periodNum: Int!
+  $subject: String
+  $teacherId: UUID
+  $teacherName: String
+  $room: String
+  $startTime: String
+  $endTime: String
+  $status: String
+  $timetableType: String
+) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {
+        _and: [
+          {firebaseUID: {eq_expr: "auth.uid"}}
+          {isActive: {eq: true}}
+          {
+            _or: [
+              {role: {in: ["MAIN_ADMIN", "main_admin"]}}
+              {userRoles_on_user: {exist: {role: {in: ["MAIN_ADMIN", "main_admin"]}}}}
+              {branches_on_principal: {exist: {id: {eq: $branchId}, isActive: {eq: true}}}}
+              {
+                _and: [
+                  {branchId: {eq: $branchId}}
+                  {
+                    _or: [
+                      {role: {in: ["PRINCIPAL", "principal"]}}
+                      {userRoles_on_user: {exist: {role: {in: ["PRINCIPAL", "principal"]}}}}
+                      {role: {in: ["COORDINATOR", "coordinator"]}}
+                      {userRoles_on_user: {exist: {role: {in: ["COORDINATOR", "coordinator"]}}}}
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+      limit: 1
+    ) @check(expr: "this.exists(u, true)", message: "Principal, Coordinator or Main Admin required") {
+      id
+      role
+      branchId
+    }
+  }
+  timetablePeriod_upsert(data: {
+    sectionId: $sectionId
+    branchId: $branchId
+    day: $day
+    periodNum: $periodNum
+    subject: $subject
+    teacherId: $teacherId
+    teacherName: $teacherName
+    room: $room
+    startTime: $startTime
+    endTime: $endTime
+    status: $status
+    timetableType: $timetableType
+    isActive: true
+  })
+}
+
+mutation PublishTimetableSection(
+  $sectionId: UUID!
+  $branchId: UUID!
+  $publishedById: UUID!
+) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {
+        _and: [
+          {firebaseUID: {eq_expr: "auth.uid"}}
+          {isActive: {eq: true}}
+          {
+            _or: [
+              {role: {in: ["MAIN_ADMIN", "main_admin"]}}
+              {userRoles_on_user: {exist: {role: {in: ["MAIN_ADMIN", "main_admin"]}}}}
+              {branches_on_principal: {exist: {id: {eq: $branchId}, isActive: {eq: true}}}}
+              {
+                _and: [
+                  {branchId: {eq: $branchId}}
+                  {
+                    _or: [
+                      {role: {in: ["PRINCIPAL", "principal"]}}
+                      {userRoles_on_user: {exist: {role: {in: ["PRINCIPAL", "principal"]}}}}
+                      {role: {in: ["COORDINATOR", "coordinator"]}}
+                      {userRoles_on_user: {exist: {role: {in: ["COORDINATOR", "coordinator"]}}}}
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+      limit: 1
+    ) @check(expr: "this.exists(u, true)", message: "Principal, Coordinator or Main Admin required") {
+      id
+      role
+      branchId
+    }
+  }
+  timetablePeriod_updateMany(
+    where: {sectionId: {eq: $sectionId}, branchId: {eq: $branchId}, isActive: {eq: true}}
+    data: {status: "PUBLISHED", publishedById: $publishedById}
+  )
+}
+
+mutation UnpublishTimetableSection(
+  $sectionId: UUID!
+  $branchId: UUID!
+) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {
+        _and: [
+          {firebaseUID: {eq_expr: "auth.uid"}}
+          {isActive: {eq: true}}
+          {
+            _or: [
+              {role: {in: ["MAIN_ADMIN", "main_admin"]}}
+              {userRoles_on_user: {exist: {role: {in: ["MAIN_ADMIN", "main_admin"]}}}}
+              {branches_on_principal: {exist: {id: {eq: $branchId}, isActive: {eq: true}}}}
+              {
+                _and: [
+                  {branchId: {eq: $branchId}}
+                  {
+                    _or: [
+                      {role: {in: ["PRINCIPAL", "principal"]}}
+                      {userRoles_on_user: {exist: {role: {in: ["PRINCIPAL", "principal"]}}}}
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+      limit: 1
+    ) @check(expr: "this.exists(u, true)", message: "Principal or Main Admin required") {
+      id
+      role
+      branchId
+    }
+  }
+  timetablePeriod_updateMany(
+    where: {sectionId: {eq: $sectionId}, branchId: {eq: $branchId}}
+    data: {status: "DRAFT"}
+  )
+}
+
 # â”€â”€ Suggestions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 mutation CreateSuggestion(
@@ -4337,6 +4493,366 @@ mutation CreatePublicHoliday(
       isSeeded: $isSeeded
       createdBy: {id: $createdById}
       updatedAt_expr: "request.time"
+    }
+  )
+}
+
+# ─── Marks Management & Result Publishing System ─────────────────────────────
+
+mutation CreateExam(
+  $branchId: UUID!
+  $academicYearId: UUID!
+  $name: String!
+  $examType: String!
+  $startDate: Date
+  $endDate: Date
+  $remarks: String
+  $createdById: UUID!
+) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {
+        _and: [
+          {firebaseUID: {eq_expr: "auth.uid"}}
+          {isActive: {eq: true}}
+          {
+            _or: [
+              {role: {in: ["PRINCIPAL", "principal", "COORDINATOR", "coordinator", "MAIN_ADMIN", "main_admin"]}}
+              {userRoles_on_user: {exist: {role: {in: ["PRINCIPAL", "principal", "COORDINATOR", "coordinator", "MAIN_ADMIN", "main_admin"]}}}}
+            ]
+          }
+        ]
+      }
+      limit: 1
+    ) @check(expr: "this.exists(u, true)", message: "Exam creation requires Principal or Coordinator role") {
+      id
+      role
+    }
+  }
+  exam_insert(
+    data: {
+      branch: {id: $branchId}
+      academicYear: {id: $academicYearId}
+      name: $name
+      examType: $examType
+      status: "DRAFT"
+      startDate: $startDate
+      endDate: $endDate
+      remarks: $remarks
+      createdBy: {id: $createdById}
+      isActive: true
+      updatedAt_expr: "request.time"
+    }
+  )
+}
+
+mutation UpdateExam(
+  $id: UUID!
+  $name: String!
+  $examType: String!
+  $startDate: Date
+  $endDate: Date
+  $remarks: String
+) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {
+        _and: [
+          {firebaseUID: {eq_expr: "auth.uid"}}
+          {isActive: {eq: true}}
+          {
+            _or: [
+              {role: {in: ["PRINCIPAL", "principal", "COORDINATOR", "coordinator", "MAIN_ADMIN", "main_admin"]}}
+              {userRoles_on_user: {exist: {role: {in: ["PRINCIPAL", "principal", "COORDINATOR", "coordinator", "MAIN_ADMIN", "main_admin"]}}}}
+            ]
+          }
+        ]
+      }
+      limit: 1
+    ) @check(expr: "this.exists(u, true)", message: "Exam update requires Principal or Coordinator role") {
+      id
+      role
+    }
+  }
+  exam_update(
+    id: $id
+    data: {
+      name: $name
+      examType: $examType
+      startDate: $startDate
+      endDate: $endDate
+      remarks: $remarks
+      updatedAt_expr: "request.time"
+    }
+  )
+}
+
+mutation ArchiveExam($id: UUID!) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {
+        _and: [
+          {firebaseUID: {eq_expr: "auth.uid"}}
+          {isActive: {eq: true}}
+          {
+            _or: [
+              {role: {in: ["PRINCIPAL", "principal", "MAIN_ADMIN", "main_admin"]}}
+              {userRoles_on_user: {exist: {role: {in: ["PRINCIPAL", "principal", "MAIN_ADMIN", "main_admin"]}}}}
+            ]
+          }
+        ]
+      }
+      limit: 1
+    ) @check(expr: "this.exists(u, true)", message: "Archive requires Principal role") {
+      id
+      role
+    }
+  }
+  exam_update(
+    id: $id
+    data: {status: "ARCHIVED" updatedAt_expr: "request.time"}
+  )
+}
+
+mutation DeleteExam($id: UUID!) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {
+        _and: [
+          {firebaseUID: {eq_expr: "auth.uid"}}
+          {isActive: {eq: true}}
+          {
+            _or: [
+              {role: {in: ["PRINCIPAL", "principal", "MAIN_ADMIN", "main_admin"]}}
+              {userRoles_on_user: {exist: {role: {in: ["PRINCIPAL", "principal", "MAIN_ADMIN", "main_admin"]}}}}
+            ]
+          }
+        ]
+      }
+      limit: 1
+    ) @check(expr: "this.exists(u, true)", message: "Delete requires Principal role") {
+      id
+      role
+    }
+  }
+  exam_update(
+    id: $id
+    data: {isActive: false updatedAt_expr: "request.time"}
+  )
+}
+
+mutation AddExamSection(
+  $examId: UUID!
+  $sectionId: UUID!
+  $academicClassId: UUID!
+  $branchId: UUID!
+) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {
+        _and: [
+          {firebaseUID: {eq_expr: "auth.uid"}}
+          {isActive: {eq: true}}
+          {
+            _or: [
+              {role: {in: ["PRINCIPAL", "principal", "COORDINATOR", "coordinator", "MAIN_ADMIN", "main_admin"]}}
+              {userRoles_on_user: {exist: {role: {in: ["PRINCIPAL", "principal", "COORDINATOR", "coordinator", "MAIN_ADMIN", "main_admin"]}}}}
+            ]
+          }
+        ]
+      }
+      limit: 1
+    ) @check(expr: "this.exists(u, true)", message: "Section linking requires Principal or Coordinator role") {
+      id
+      role
+    }
+  }
+  examSection_insert(
+    data: {
+      exam: {id: $examId}
+      section: {id: $sectionId}
+      academicClass: {id: $academicClassId}
+      branch: {id: $branchId}
+      isPublished: false
+      updatedAt_expr: "request.time"
+    }
+  )
+}
+
+mutation UpsertExamSubjectConfig(
+  $examId: UUID!
+  $academicClassId: UUID!
+  $branchId: UUID!
+  $subjectName: String!
+  $maxMarks: Float!
+  $passingMarks: Float!
+) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {
+        _and: [
+          {firebaseUID: {eq_expr: "auth.uid"}}
+          {isActive: {eq: true}}
+          {
+            _or: [
+              {role: {in: ["PRINCIPAL", "principal", "COORDINATOR", "coordinator", "MAIN_ADMIN", "main_admin"]}}
+              {userRoles_on_user: {exist: {role: {in: ["PRINCIPAL", "principal", "COORDINATOR", "coordinator", "MAIN_ADMIN", "main_admin"]}}}}
+            ]
+          }
+        ]
+      }
+      limit: 1
+    ) @check(expr: "this.exists(u, true)", message: "Subject config requires Principal or Coordinator role") {
+      id
+      role
+    }
+  }
+  examSubjectConfig_upsert(
+    data: {
+      exam: {id: $examId}
+      academicClass: {id: $academicClassId}
+      branch: {id: $branchId}
+      subjectName: $subjectName
+      maxMarks: $maxMarks
+      passingMarks: $passingMarks
+      updatedAt_expr: "request.time"
+    }
+  )
+}
+
+mutation UpsertStudentMark(
+  $examId: UUID!
+  $studentId: UUID!
+  $sectionId: UUID!
+  $branchId: UUID!
+  $academicYearId: UUID!
+  $subjectName: String!
+  $marksObtained: Float
+  $isAbsent: Boolean!
+  $enteredById: UUID!
+) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {
+        _and: [
+          {firebaseUID: {eq_expr: "auth.uid"}}
+          {isActive: {eq: true}}
+          {
+            _or: [
+              {role: {in: ["PRINCIPAL", "principal", "COORDINATOR", "coordinator", "TEACHER", "teacher", "CLASS_TEACHER", "class_teacher", "MAIN_ADMIN", "main_admin"]}}
+              {userRoles_on_user: {exist: {role: {in: ["PRINCIPAL", "principal", "COORDINATOR", "coordinator", "TEACHER", "teacher", "CLASS_TEACHER", "class_teacher", "MAIN_ADMIN", "main_admin"]}}}}
+            ]
+          }
+        ]
+      }
+      limit: 1
+    ) @check(expr: "this.exists(u, true)", message: "Marks entry requires Principal, Coordinator or Teacher role") {
+      id
+      role
+    }
+  }
+  studentMark_upsert(
+    data: {
+      exam: {id: $examId}
+      student: {id: $studentId}
+      section: {id: $sectionId}
+      branch: {id: $branchId}
+      academicYear: {id: $academicYearId}
+      subjectName: $subjectName
+      marksObtained: $marksObtained
+      isAbsent: $isAbsent
+      enteredBy: {id: $enteredById}
+      lastEditedBy: {id: $enteredById}
+      updatedAt_expr: "request.time"
+    }
+  )
+}
+
+mutation PublishExamSection(
+  $examSectionId: UUID!
+  $publishedById: UUID!
+) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {
+        _and: [
+          {firebaseUID: {eq_expr: "auth.uid"}}
+          {isActive: {eq: true}}
+          {
+            _or: [
+              {role: {in: ["PRINCIPAL", "principal", "COORDINATOR", "coordinator", "MAIN_ADMIN", "main_admin"]}}
+              {userRoles_on_user: {exist: {role: {in: ["PRINCIPAL", "principal", "COORDINATOR", "coordinator", "MAIN_ADMIN", "main_admin"]}}}}
+            ]
+          }
+        ]
+      }
+      limit: 1
+    ) @check(expr: "this.exists(u, true)", message: "Publishing requires Principal or Coordinator role") {
+      id
+      role
+    }
+  }
+  examSection_update(
+    id: $examSectionId
+    data: {
+      isPublished: true
+      publishedBy: {id: $publishedById}
+      publishedAt_expr: "request.time"
+      updatedAt_expr: "request.time"
+    }
+  )
+}
+
+mutation UnpublishExamSection($examSectionId: UUID!) @auth(level: USER) @transaction {
+  query @redact {
+    users(
+      where: {
+        _and: [
+          {firebaseUID: {eq_expr: "auth.uid"}}
+          {isActive: {eq: true}}
+          {
+            _or: [
+              {role: {in: ["PRINCIPAL", "principal", "MAIN_ADMIN", "main_admin"]}}
+              {userRoles_on_user: {exist: {role: {in: ["PRINCIPAL", "principal", "MAIN_ADMIN", "main_admin"]}}}}
+            ]
+          }
+        ]
+      }
+      limit: 1
+    ) @check(expr: "this.exists(u, true)", message: "Unpublishing requires Principal role") {
+      id
+      role
+    }
+  }
+  examSection_update(
+    id: $examSectionId
+    data: {
+      isPublished: false
+      updatedAt_expr: "request.time"
+    }
+  )
+}
+
+mutation RecordMarksAuditLog(
+  $examId: UUID!
+  $studentId: UUID!
+  $branchId: UUID!
+  $subjectName: String!
+  $oldMarks: Float
+  $newMarks: Float
+  $changedById: UUID!
+  $changedByRole: String!
+) @auth(level: USER) {
+  marksAuditLog_insert(
+    data: {
+      exam: {id: $examId}
+      student: {id: $studentId}
+      branch: {id: $branchId}
+      subjectName: $subjectName
+      oldMarks: $oldMarks
+      newMarks: $newMarks
+      changedBy: {id: $changedById}
+      changedByRole: $changedByRole
     }
   )
 }

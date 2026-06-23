@@ -19,6 +19,8 @@ import TimetableScreen from '../screens/parent/TimetableScreen';
 import NotificationCenterScreen from '../screens/notifications/NotificationCenterScreen';
 import notificationService from '../services/notifications/notificationService';
 import {colors} from '../theme';
+import ResultsScreen from '../screens/parent/ResultsScreen';
+import ResultDetailsScreen from '../screens/parent/ResultDetailsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -60,6 +62,9 @@ const ParentHomeStack = () => (
       component={TimetableScreen}
       options={{title: 'Class Timetable'}}
     />
+    {/* Results */}
+    <Stack.Screen name="Results" component={ResultsScreen} options={{headerShown: false}} />
+    <Stack.Screen name="ResultDetails" component={ResultDetailsScreen} options={{headerShown: false}} />
   </Stack.Navigator>
 );
 

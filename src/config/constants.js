@@ -174,3 +174,72 @@ export const USER_ROLE_ALIASES = {
   PARENT: ['PARENT', 'parent'],
   ACCOUNTANT: ['ACCOUNTANT', 'accountant'],
 };
+
+// ─── Marks Management ────────────────────────────────────────────────────────
+
+export const EXAM_TYPES = {
+  UNIT_TEST: 'UNIT_TEST',
+  MONTHLY: 'MONTHLY',
+  QUARTERLY: 'QUARTERLY',
+  HALF_YEARLY: 'HALF_YEARLY',
+  PRE_FINAL: 'PRE_FINAL',
+  ANNUAL: 'ANNUAL',
+  CUSTOM: 'CUSTOM',
+};
+
+export const EXAM_TYPE_LABELS = {
+  UNIT_TEST: 'Unit Test',
+  MONTHLY: 'Monthly Test',
+  QUARTERLY: 'Quarterly',
+  HALF_YEARLY: 'Half Yearly',
+  PRE_FINAL: 'Pre-Final',
+  ANNUAL: 'Annual',
+  CUSTOM: 'Custom',
+};
+
+export const EXAM_STATUS = {
+  DRAFT: 'DRAFT',
+  PUBLISHED: 'PUBLISHED',
+  ARCHIVED: 'ARCHIVED',
+};
+
+export const EXAM_STATUS_LABELS = {
+  DRAFT: 'Draft',
+  PUBLISHED: 'Published',
+  ARCHIVED: 'Archived',
+};
+
+export const TIMETABLE_STATUS = {
+  DRAFT:     'DRAFT',
+  PUBLISHED: 'PUBLISHED',
+  ARCHIVED:  'ARCHIVED',
+};
+
+export const TIMETABLE_TYPE = {
+  REGULAR: 'REGULAR',
+  EXAM:    'EXAM',
+  SPECIAL: 'SPECIAL',
+};
+
+export const TIMETABLE_STATUS_LABELS = {
+  [TIMETABLE_STATUS.DRAFT]:     'Draft',
+  [TIMETABLE_STATUS.PUBLISHED]: 'Published',
+  [TIMETABLE_STATUS.ARCHIVED]:  'Archived',
+};
+
+export const TIMETABLE_TYPE_LABELS = {
+  [TIMETABLE_TYPE.REGULAR]: 'Regular',
+  [TIMETABLE_TYPE.EXAM]:    'Exam',
+  [TIMETABLE_TYPE.SPECIAL]: 'Special',
+};
+
+// Grade thresholds based on percentage. Evaluated top-to-bottom — first match wins.
+export const GRADE_THRESHOLDS = [
+  {min: 90, grade: 'A+', label: 'Outstanding'},
+  {min: 80, grade: 'A', label: 'Excellent'},
+  {min: 70, grade: 'B+', label: 'Very Good'},
+  {min: 60, grade: 'B', label: 'Good'},
+  {min: 50, grade: 'C', label: 'Average'},
+  {min: 40, grade: 'D', label: 'Below Average'},
+  {min: 0, grade: 'F', label: 'Fail'},
+];

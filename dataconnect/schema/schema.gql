@@ -854,6 +854,12 @@ type TimetablePeriod @table(name: "timetable_periods", key: ["section", "day", "
   subject: String @col(dataType: "varchar(80)")
   teacherName: String @col(name: "teacher_name", dataType: "varchar(120)")
   room: String @col(dataType: "varchar(40)")
+  status: String @col(dataType: "varchar(20)") @default(value: "DRAFT")
+  startTime: String @col(name: "start_time", dataType: "varchar(8)")
+  endTime: String @col(name: "end_time", dataType: "varchar(8)")
+  timetableType: String @col(name: "timetable_type", dataType: "varchar(20)") @default(value: "REGULAR")
+  publishedAt: Timestamp @col(name: "published_at")
+  publishedBy: User
   isActive: Boolean! @default(value: true)
   createdAt: Timestamp! @default(expr: "request.time")
   updatedAt: Timestamp! @default(expr: "request.time")
@@ -863,6 +869,7 @@ extend type TimetablePeriod {
   sectionId: UUID!
   branchId: UUID!
   teacherId: UUID
+  publishedById: UUID
 }
 
 type Suggestion @table(name: "suggestions", key: "id") {
@@ -957,5 +964,135 @@ extend type StudentAcademicHistory {
   branchId: UUID!
   promotedById: UUID
   promotedToSectionId: UUID
+}
+
+# ─── Marks Management & Result Publishing System ─────────────────────────────
+# Exam configuration per branch per academic year.
+# status: DRAFT | PUBLISHED | ARCHIVED
+type Exam
+  @table(name: "exams", key: "id")
+  @unique(fields: ["branch", "academicYear", "name"])
+  @index(fields: ["branchId", "academicYearId", "status"])
+  @index(fields: ["branchId", "isActive"]) {
+  id: UUID! @default(expr: "uuidV4()")
+  branch: Branch!
+  academicYear: AcademicYear!
+  name: String! @col(dataType: "varchar(140)")
+  examType: String! @col(name: "exam_type", dataType: "varchar(30)")
+  status: String! @col(dataType: "varchar(20)") @default(value: "DRAFT")
+  startDate: Date @col(name: "start_date")
+  endDate: Date @col(name: "end_date")
+  remarks: String
+  createdBy: User!
+  isActive: Boolean! @default(value: true)
+  createdAt: Timestamp! @default(expr: "request.time")
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+extend type Exam {
+  branchId: UUID!
+  academicYearId: UUID!
+  createdById: UUID!
+}
+
+# Links an exam to a specific section and tracks per-section publish state.
+type ExamSection
+  @table(name: "exam_sections", key: "id")
+  @unique(fields: ["exam", "section"])
+  @index(fields: ["examId", "isPublished"])
+  @index(fields: ["sectionId", "isPublished"]) {
+  id: UUID! @default(expr: "uuidV4()")
+  exam: Exam!
+  section: Section!
+  academicClass: AcademicClass!
+  branch: Branch!
+  isPublished: Boolean! @col(name: "is_published") @default(value: false)
+  publishedBy: User
+  publishedAt: Timestamp @col(name: "published_at")
+  createdAt: Timestamp! @default(expr: "request.time")
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+extend type ExamSection {
+  examId: UUID!
+  sectionId: UUID!
+  academicClassId: UUID!
+  branchId: UUID!
+  publishedById: UUID
+}
+
+# Max marks and passing marks per subject per exam per class.
+type ExamSubjectConfig
+  @table(name: "exam_subject_configs", key: ["examId", "academicClassId", "subjectName"])
+  @index(fields: ["examId", "academicClassId"]) {
+  exam: Exam!
+  academicClass: AcademicClass!
+  branch: Branch!
+  subjectName: String! @col(name: "subject_name", dataType: "varchar(120)")
+  maxMarks: Float! @col(name: "max_marks")
+  passingMarks: Float! @col(name: "passing_marks")
+  createdAt: Timestamp! @default(expr: "request.time")
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+extend type ExamSubjectConfig {
+  examId: UUID!
+  academicClassId: UUID!
+  branchId: UUID!
+}
+
+# One row per student × exam × subject. Upserted on every marks save.
+# marksObtained is nullable — null means marks not yet entered.
+type StudentMark
+  @table(name: "student_marks", key: ["examId", "studentId", "subjectName"])
+  @index(fields: ["examId", "sectionId"])
+  @index(fields: ["studentId", "examId"])
+  @index(fields: ["branchId", "academicYearId"]) {
+  exam: Exam!
+  student: Student!
+  section: Section!
+  branch: Branch!
+  academicYear: AcademicYear!
+  subjectName: String! @col(name: "subject_name", dataType: "varchar(120)")
+  marksObtained: Float @col(name: "marks_obtained")
+  isAbsent: Boolean! @col(name: "is_absent") @default(value: false)
+  enteredBy: User!
+  lastEditedBy: User
+  createdAt: Timestamp! @default(expr: "request.time")
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+extend type StudentMark {
+  examId: UUID!
+  studentId: UUID!
+  sectionId: UUID!
+  branchId: UUID!
+  academicYearId: UUID!
+  enteredById: UUID!
+  lastEditedById: UUID
+}
+
+# INSERT-ONLY audit trail for every marks change.
+type MarksAuditLog
+  @table(name: "marks_audit_logs", key: "id")
+  @index(fields: ["examId", "studentId"])
+  @index(fields: ["branchId", "changedAt"]) {
+  id: UUID! @default(expr: "uuidV4()")
+  exam: Exam!
+  student: Student!
+  branch: Branch!
+  subjectName: String! @col(name: "subject_name", dataType: "varchar(120)")
+  oldMarks: Float @col(name: "old_marks")
+  newMarks: Float @col(name: "new_marks")
+  changedBy: User!
+  changedByRole: String! @col(name: "changed_by_role", dataType: "varchar(30)")
+  changedAt: Timestamp! @col(name: "changed_at") @default(expr: "request.time")
+}
+
+extend type MarksAuditLog {
+  examId: UUID!
+  studentId: UUID!
+  branchId: UUID!
+  changedById: UUID!
 }
 

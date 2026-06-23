@@ -4558,6 +4558,12 @@ query GetTimetableForSection($sectionId: UUID!) @auth(level: USER) {
     subject
     teacherName
     room
+    status
+    startTime
+    endTime
+    timetableType
+    publishedById
+    publishedAt
     isActive
     section {
       id
@@ -4592,10 +4598,58 @@ query GetTimetablesForBranch($branchId: UUID!) @auth(level: USER) {
     subject
     teacherName
     room
+    status
+    startTime
+    endTime
+    timetableType
+    publishedById
+    publishedAt
     isActive
     section {
       id
       name
+      wingId
+      academicClass {
+        id
+        name
+      }
+    }
+  }
+}
+
+query GetTimetablesForWing($branchId: UUID!, $wingId: UUID!) @auth(level: USER) {
+  currentUser: users(
+    where: {firebaseUID: {eq_expr: "auth.uid"}, isActive: {eq: true}}
+    limit: 1
+  ) @redact @check(expr: "this.exists(u, u.role == 'MAIN_ADMIN' || u.role == 'main_admin' || u.branchId == vars.branchId)", message: "Branch access denied") {
+    id
+    role
+    branchId
+  }
+  timetablePeriods(
+    where: {branchId: {eq: $branchId}, isActive: {eq: true}, section: {wingId: {eq: $wingId}}}
+    orderBy: {periodNum: ASC}
+    limit: 1000
+  ) {
+    sectionId
+    branchId
+    teacherId
+    day
+    periodNum
+    subject
+    teacherName
+    room
+    status
+    startTime
+    endTime
+    timetableType
+    publishedById
+    publishedAt
+    isActive
+    section {
+      id
+      name
+      wingId
       academicClass {
         id
         name
@@ -4626,6 +4680,10 @@ query GetTimetableForTeacher($teacherId: UUID!, $branchId: UUID!) @auth(level: U
     subject
     teacherName
     room
+    status
+    startTime
+    endTime
+    timetableType
     isActive
     section {
       id
@@ -5289,5 +5347,332 @@ query GetAttendanceAlertLog(
     currentPct
     sentAt
     recovered
+  }
+}
+
+# ─── Marks Management & Result Publishing System ─────────────────────────────
+
+query GetExamsByBranch(
+  $branchId: UUID!
+  $academicYearId: UUID!
+  $limit: Int!
+  $offset: Int!
+) @auth(level: USER) {
+  exams(
+    where: {
+      branchId: {eq: $branchId}
+      academicYearId: {eq: $academicYearId}
+      isActive: {eq: true}
+    }
+    orderBy: [{createdAt: DESC}]
+    limit: $limit
+    offset: $offset
+  ) {
+    id
+    name
+    examType
+    status
+    startDate
+    endDate
+    remarks
+    createdAt
+    updatedAt
+    academicYear {
+      id
+      name
+      startYear
+    }
+    examSections_on_exam {
+      id
+      sectionId
+      isPublished
+      section {
+        id
+        name
+        academicClass {
+          id
+          name
+        }
+      }
+    }
+  }
+}
+
+query GetExamDetails($examId: UUID!) @auth(level: USER) {
+  exams(where: {id: {eq: $examId}, isActive: {eq: true}}, limit: 1) {
+    id
+    name
+    examType
+    status
+    startDate
+    endDate
+    remarks
+    branchId
+    academicYearId
+    createdAt
+    updatedAt
+    createdBy {
+      id
+      fullName
+    }
+    academicYear {
+      id
+      name
+      startYear
+    }
+    examSections_on_exam {
+      id
+      sectionId
+      academicClassId
+      isPublished
+      publishedAt
+      publishedBy {
+        id
+        fullName
+      }
+      section {
+        id
+        name
+        academicClass {
+          id
+          name
+        }
+      }
+    }
+    examSubjectConfigs_on_exam {
+      subjectName
+      maxMarks
+      passingMarks
+      academicClassId
+    }
+  }
+}
+
+query GetMarksForSection(
+  $examId: UUID!
+  $sectionId: UUID!
+) @auth(level: USER) {
+  students(
+    where: {sectionId: {eq: $sectionId}, isActive: {eq: true}, status: {eq: "ACTIVE"}}
+    orderBy: [{rollNumber: ASC}, {fullName: ASC}]
+    limit: 200
+    offset: 0
+  ) {
+    id
+    studentId
+    fullName
+    rollNumber
+    examMarks: studentMarks_on_student(where: {examId: {eq: $examId}}) {
+      subjectName
+      marksObtained
+      isAbsent
+      updatedAt
+    }
+  }
+  examSubjectConfigs(
+    where: {examId: {eq: $examId}}
+    orderBy: [{subjectName: ASC}]
+    limit: 50
+    offset: 0
+  ) {
+    subjectName
+    maxMarks
+    passingMarks
+    academicClassId
+  }
+  examSections(
+    where: {examId: {eq: $examId}, sectionId: {eq: $sectionId}}
+    limit: 1
+  ) {
+    id
+    isPublished
+    publishedAt
+  }
+}
+
+# Parent-safe: only returns published results for a specific student.
+query GetStudentResultsForParent(
+  $studentId: UUID!
+  $academicYearId: UUID!
+) @auth(level: USER) {
+  examSections(
+    where: {
+      isPublished: {eq: true}
+      section: {students_on_section: {exist: {id: {eq: $studentId}, isActive: {eq: true}}}}
+    }
+    orderBy: [{publishedAt: DESC}]
+    limit: 50
+    offset: 0
+  ) {
+    id
+    isPublished
+    publishedAt
+    exam {
+      id
+      name
+      examType
+      startDate
+      endDate
+      academicYearId
+    }
+    section {
+      id
+      name
+      academicClass {
+        id
+        name
+      }
+    }
+  }
+}
+
+query GetStudentResultDetail(
+  $examId: UUID!
+  $studentId: UUID!
+) @auth(level: USER) {
+  studentMarks(
+    where: {examId: {eq: $examId}, studentId: {eq: $studentId}}
+    orderBy: [{subjectName: ASC}]
+    limit: 50
+    offset: 0
+  ) {
+    subjectName
+    marksObtained
+    isAbsent
+    updatedAt
+    student {
+      id
+      fullName
+      studentId
+      rollNumber
+      section {
+        id
+        name
+        academicClass {
+          id
+          name
+        }
+      }
+    }
+  }
+  examSubjectConfigs(
+    where: {examId: {eq: $examId}}
+    orderBy: [{subjectName: ASC}]
+    limit: 50
+    offset: 0
+  ) {
+    subjectName
+    maxMarks
+    passingMarks
+  }
+  exams(where: {id: {eq: $examId}}, limit: 1) {
+    id
+    name
+    examType
+    startDate
+    endDate
+    branchId
+    academicYear {
+      id
+      name
+      startYear
+    }
+  }
+}
+
+query GetExamAnalytics(
+  $examId: UUID!
+  $sectionId: UUID!
+) @auth(level: USER) {
+  studentMarks(
+    where: {examId: {eq: $examId}, sectionId: {eq: $sectionId}}
+    limit: 500
+    offset: 0
+  ) {
+    studentId
+    subjectName
+    marksObtained
+    isAbsent
+  }
+  examSubjectConfigs(
+    where: {examId: {eq: $examId}}
+    orderBy: [{subjectName: ASC}]
+    limit: 50
+    offset: 0
+  ) {
+    subjectName
+    maxMarks
+    passingMarks
+  }
+  students(
+    where: {sectionId: {eq: $sectionId}, isActive: {eq: true}, status: {eq: "ACTIVE"}}
+    limit: 200
+    offset: 0
+  ) {
+    id
+    fullName
+    studentId
+    rollNumber
+  }
+}
+
+query GetPublishedExamsForSection(
+  $sectionId: UUID!
+  $academicYearId: UUID!
+) @auth(level: USER) {
+  examSections(
+    where: {
+      sectionId: {eq: $sectionId}
+      isPublished: {eq: true}
+      exam: {academicYearId: {eq: $academicYearId}, isActive: {eq: true}}
+    }
+    orderBy: [{publishedAt: DESC}]
+    limit: 50
+    offset: 0
+  ) {
+    id
+    isPublished
+    publishedAt
+    exam {
+      id
+      name
+      examType
+      startDate
+      endDate
+    }
+  }
+}
+
+query GetExamsBySection(
+  $sectionId: UUID!
+  $academicYearId: UUID!
+) @auth(level: USER) {
+  examSections(
+    where: {
+      sectionId: {eq: $sectionId}
+      exam: {academicYearId: {eq: $academicYearId}, isActive: {eq: true}}
+    }
+    orderBy: [{createdAt: DESC}]
+    limit: 50
+    offset: 0
+  ) {
+    id
+    isPublished
+    publishedAt
+    exam {
+      id
+      name
+      examType
+      status
+      startDate
+      endDate
+      remarks
+      examSubjectConfigs_on_exam {
+        subjectName
+        maxMarks
+        passingMarks
+        academicClassId
+      }
+    }
   }
 }

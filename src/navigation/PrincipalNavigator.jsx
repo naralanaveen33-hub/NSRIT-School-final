@@ -39,12 +39,19 @@ import NoticeBoardScreen from '../screens/principal/NoticeBoardScreen';
 import PostNoticeScreen from '../screens/coordinator/PostNoticeScreen';
 import TimetableDashboardScreen from '../screens/principal/TimetableDashboardScreen';
 import TimetableEditorScreen from '../screens/principal/TimetableEditorScreen';
+import BulkImportTimetableScreen from '../screens/timetable/BulkImportTimetableScreen';
 import NotificationCenterScreen from '../screens/notifications/NotificationCenterScreen';
 import CreateNotificationScreen from '../screens/accountant/CreateNotificationScreen';
 import GraduateFinalYearScreen from '../screens/principal/GraduateFinalYearScreen';
 import HolidayManagementScreen from '../screens/shared/HolidayManagementScreen';
 import AcademicYearOverviewScreen from '../screens/principal/AcademicYearOverviewScreen';
 import AcademicYearManagementScreen from '../screens/principal/AcademicYearManagementScreen';
+import ExamListScreen from '../screens/marks/ExamListScreen';
+import CreateExamScreen from '../screens/marks/CreateExamScreen';
+import ExamDetailsScreen from '../screens/marks/ExamDetailsScreen';
+import MarksEntryScreen from '../screens/marks/MarksEntryScreen';
+import BulkUploadScreen from '../screens/marks/BulkUploadScreen';
+import ExamAnalyticsScreen from '../screens/marks/ExamAnalyticsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -234,7 +241,12 @@ const PrincipalNavigator = () => (
     <Stack.Screen
       name="TimetableEditor"
       component={TimetableEditorScreen}
-      options={{title: 'Edit Timetable'}}
+      options={{headerShown: false}}
+    />
+    <Stack.Screen
+      name="BulkImportTimetable"
+      component={BulkImportTimetableScreen}
+      options={{headerShown: false}}
     />
     <Stack.Screen
       name="NotificationCenter"
@@ -271,6 +283,13 @@ const PrincipalNavigator = () => (
       component={AcademicYearManagementScreen}
       options={{title: 'Year Management'}}
     />
+    {/* Marks Management */}
+    <Stack.Screen name="ExamList" component={ExamListScreen} options={{headerShown: false}} />
+    <Stack.Screen name="CreateExam" component={CreateExamScreen} options={{headerShown: false}} />
+    <Stack.Screen name="ExamDetails" component={ExamDetailsScreen} options={{headerShown: false}} />
+    <Stack.Screen name="MarksEntry" component={MarksEntryScreen} options={{headerShown: false}} />
+    <Stack.Screen name="BulkMarksUpload" component={BulkUploadScreen} options={{headerShown: false}} />
+    <Stack.Screen name="ExamAnalytics" component={ExamAnalyticsScreen} options={{headerShown: false}} />
   </Stack.Navigator>
 );
 

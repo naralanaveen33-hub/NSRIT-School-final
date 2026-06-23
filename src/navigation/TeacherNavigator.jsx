@@ -14,6 +14,10 @@ import SharedNoticeBoardScreen from '../screens/shared/NoticeBoardScreen';
 import NotificationCenterScreen from '../screens/notifications/NotificationCenterScreen';
 import {renderFeeStackScreens} from './FeeStackScreens';
 import {colors} from '../theme';
+import ExamListScreen from '../screens/marks/ExamListScreen';
+import ExamDetailsScreen from '../screens/marks/ExamDetailsScreen';
+import MarksEntryScreen from '../screens/marks/MarksEntryScreen';
+import ExamAnalyticsScreen from '../screens/marks/ExamAnalyticsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -74,6 +78,11 @@ const TeacherHomeStack = () => (
       options={{title: 'Notifications'}}
     />
     {renderFeeStackScreens(Stack)}
+    {/* Marks — read+entry only for teachers */}
+    <Stack.Screen name="ExamList" component={ExamListScreen} options={{headerShown: false}} />
+    <Stack.Screen name="ExamDetails" component={ExamDetailsScreen} options={{headerShown: false}} />
+    <Stack.Screen name="MarksEntry" component={MarksEntryScreen} options={{headerShown: false}} />
+    <Stack.Screen name="ExamAnalytics" component={ExamAnalyticsScreen} options={{headerShown: false}} />
   </Stack.Navigator>
 );
 

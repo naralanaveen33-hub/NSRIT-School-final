@@ -286,6 +286,8 @@ const DashboardScreen = ({navigation}) => {
           <View style={styles.div} />
           <NavRow icon="calendar-star-outline"  label="Academic Year"        desc="Year overview, status & rollover"   color={colors.warning}   onPress={() => navigation.navigate('AcademicYearOverview')}  delay={340} />
           <NavRow icon="calendar-edit"          label="Year Management"      desc="Create, activate & close years"     color={colors.primary}   onPress={() => navigation.navigate('AcademicYearManagement')} delay={360} />
+          <View style={styles.div} />
+          <NavRow icon="clipboard-text-outline" label="Exams & Marks"        desc="Create exams, enter marks, publish results" color={colors.info} onPress={() => navigation.navigate('ExamList')} delay={380} />
         </Animated.View>
 
         {/* ── Staff Management ── */}

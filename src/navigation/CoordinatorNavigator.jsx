@@ -35,6 +35,15 @@ import CreateNotificationScreen from '../screens/accountant/CreateNotificationSc
 import {renderFeeStackScreens} from './FeeStackScreens';
 import CoordinatorProfileScreen from '../screens/coordinator/ProfileScreen';
 import HolidayManagementScreen from '../screens/shared/HolidayManagementScreen';
+import ExamListScreen from '../screens/marks/ExamListScreen';
+import CreateExamScreen from '../screens/marks/CreateExamScreen';
+import ExamDetailsScreen from '../screens/marks/ExamDetailsScreen';
+import MarksEntryScreen from '../screens/marks/MarksEntryScreen';
+import BulkUploadScreen from '../screens/marks/BulkUploadScreen';
+import ExamAnalyticsScreen from '../screens/marks/ExamAnalyticsScreen';
+import TimetableDashboardScreen from '../screens/principal/TimetableDashboardScreen';
+import TimetableEditorScreen from '../screens/principal/TimetableEditorScreen';
+import BulkImportTimetableScreen from '../screens/timetable/BulkImportTimetableScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -220,6 +229,19 @@ const CoordinatorNavigator = () => (
 
     {/* ── Shared fee sub-screens ── */}
     {renderFeeStackScreens(Stack, {skipDashboard: true, reports: true})}
+
+    {/* ── Marks Management ── */}
+    <Stack.Screen name="ExamList" component={ExamListScreen} options={{headerShown: false}} />
+    <Stack.Screen name="CreateExam" component={CreateExamScreen} options={{headerShown: false}} />
+    <Stack.Screen name="ExamDetails" component={ExamDetailsScreen} options={{headerShown: false}} />
+    <Stack.Screen name="MarksEntry" component={MarksEntryScreen} options={{headerShown: false}} />
+    <Stack.Screen name="BulkMarksUpload" component={BulkUploadScreen} options={{headerShown: false}} />
+    <Stack.Screen name="ExamAnalytics" component={ExamAnalyticsScreen} options={{headerShown: false}} />
+
+    {/* ── Timetable Management ── */}
+    <Stack.Screen name="Timetable" component={TimetableDashboardScreen} options={{headerShown: false}} />
+    <Stack.Screen name="TimetableEditor" component={TimetableEditorScreen} options={{headerShown: false}} />
+    <Stack.Screen name="BulkImportTimetable" component={BulkImportTimetableScreen} options={{headerShown: false}} />
   </Stack.Navigator>
 );
 

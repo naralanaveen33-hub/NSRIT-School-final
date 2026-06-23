@@ -1,21 +1,29 @@
-import React, {useState, useCallback} from 'react';
+import React, {useState, useCallback, useMemo} from 'react';
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   TextInput,
   View,
 } from 'react-native';
 import {Text} from 'react-native-paper';
 import Animated, {FadeInDown} from 'react-native-reanimated';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import {useSelector} from 'react-redux';
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 import {ConfirmationModal} from '../../components';
-import timetableService from '../../services/timetable/timetableService';
+import timetableService, {
+  canManageTimetable,
+  canPublishTimetable,
+  canDeleteTimetable,
+  getTimetableStatus,
+} from '../../services/timetable/timetableService';
+import teacherService from '../../services/teachers/teacherService';
+import {TIMETABLE_STATUS} from '../../config/constants';
 import {colors, radius, shadows, spacing, typography} from '../../theme';
 
 const DAYS_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -31,6 +39,8 @@ const getSubjectColor = subject => {
   return SUBJECT_COLORS[hash];
 };
 
+// ── Period Cell ───────────────────────────────────────────────────────────────
+
 const PeriodCell = ({period, onPress}) => {
   const hasSubject = Boolean(period.subject);
   const color = getSubjectColor(period.subject);
@@ -44,6 +54,9 @@ const PeriodCell = ({period, onPress}) => {
           {period.teacherName ? (
             <Text style={styles.cellTeacher} numberOfLines={1}>{period.teacherName}</Text>
           ) : null}
+          {period.startTime ? (
+            <Text style={styles.cellTime} numberOfLines={1}>{period.startTime}</Text>
+          ) : null}
         </>
       ) : (
         <MaterialCommunityIcons name="plus" size={14} color={colors.border} />
@@ -52,16 +65,119 @@ const PeriodCell = ({period, onPress}) => {
   );
 };
 
-const PeriodModal = ({visible, period, onSave, onClear, onClose}) => {
+// ── Teacher Picker Modal ──────────────────────────────────────────────────────
+
+const TeacherPickerModal = ({visible, teachers, onSelect, onClose}) => {
+  const [search, setSearch] = useState('');
+  const filtered = useMemo(() => {
+    if (!search.trim()) {return teachers;}
+    const q = search.toLowerCase();
+    return teachers.filter(t => (t.name || '').toLowerCase().includes(q));
+  }, [teachers, search]);
+
+  return (
+    <Modal transparent animationType="slide" visible={visible} onRequestClose={onClose}>
+      <View style={styles.pickerOverlay}>
+        <View style={styles.pickerSheet}>
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>Select Teacher</Text>
+            <Pressable onPress={onClose} style={styles.pickerClose}>
+              <MaterialCommunityIcons name="close" size={20} color={colors.textMuted} />
+            </Pressable>
+          </View>
+          <View style={styles.pickerSearch}>
+            <MaterialCommunityIcons name="magnify" size={16} color={colors.textMuted} />
+            <TextInput
+              style={styles.pickerSearchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search teacher..."
+              placeholderTextColor={colors.textSoft}
+              autoFocus
+            />
+          </View>
+          <FlatList
+            data={filtered}
+            keyExtractor={t => t.id}
+            renderItem={({item}) => (
+              <Pressable
+                style={({pressed}) => [styles.teacherRow, pressed && {backgroundColor: colors.primaryFaint}]}
+                onPress={() => {
+                  onSelect(item);
+                  onClose();
+                  setSearch('');
+                }}>
+                <View style={styles.teacherAvatar}>
+                  <Text style={styles.teacherAvatarText}>{(item.name || 'T')[0].toUpperCase()}</Text>
+                </View>
+                <View style={styles.teacherInfo}>
+                  <Text style={styles.teacherName}>{item.name}</Text>
+                  {item.designation ? (
+                    <Text style={styles.teacherDes}>{item.designation}</Text>
+                  ) : null}
+                </View>
+              </Pressable>
+            )}
+            ListEmptyComponent={
+              <View style={styles.pickerEmpty}>
+                <Text style={styles.pickerEmptyText}>No teachers found</Text>
+              </View>
+            }
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// ── Section Picker Modal (for Copy From) ─────────────────────────────────────
+
+const SectionPickerModal = ({visible, sections, onSelect, onClose}) => (
+  <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
+    <Pressable style={styles.overlay} onPress={onClose}>
+      <Pressable style={styles.sectionPickerModal} onPress={e => e.stopPropagation()}>
+        <Text style={styles.modalTitle}>Copy Timetable From</Text>
+        <Text style={styles.sectionPickerSub}>Select a section to copy its timetable</Text>
+        <FlatList
+          data={sections}
+          keyExtractor={s => s.sectionId}
+          style={styles.sectionPickerList}
+          renderItem={({item}) => (
+            <Pressable
+              style={({pressed}) => [styles.sectionPickerRow, pressed && {backgroundColor: colors.primaryFaint}]}
+              onPress={() => {onSelect(item); onClose();}}>
+              <MaterialCommunityIcons name="school-outline" size={16} color={colors.primary} />
+              <Text style={styles.sectionPickerLabel}>{item.className} — Section {item.sectionName}</Text>
+            </Pressable>
+          )}
+        />
+        <Pressable style={styles.cancelBtn} onPress={onClose}>
+          <Text style={styles.cancelBtnText}>Cancel</Text>
+        </Pressable>
+      </Pressable>
+    </Pressable>
+  </Modal>
+);
+
+// ── Period Modal ──────────────────────────────────────────────────────────────
+
+const PeriodModal = ({visible, period, teachers, onSave, onClear, onClose}) => {
   const [subject, setSubject] = useState('');
-  const [teacherName, setTeacherName] = useState('');
+  const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [room, setRoom] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [teacherPickerVisible, setTeacherPickerVisible] = useState(false);
 
   React.useEffect(() => {
     if (visible && period) {
       setSubject(period.subject || '');
-      setTeacherName(period.teacherName || '');
+      setSelectedTeacher(period.teacherId
+        ? {id: period.teacherId, name: period.teacherName || ''}
+        : null);
       setRoom(period.room || '');
+      setStartTime(period.startTime || '');
+      setEndTime(period.endTime || '');
     }
   }, [visible, period]);
 
@@ -70,93 +186,182 @@ const PeriodModal = ({visible, period, onSave, onClear, onClose}) => {
       Alert.alert('Required', 'Please enter a subject name.');
       return;
     }
-    onSave({subject: subject.trim(), teacherName: teacherName.trim(), room: room.trim()});
+    onSave({
+      subject: subject.trim(),
+      teacherId: selectedTeacher?.id || null,
+      teacherName: selectedTeacher?.name || '',
+      room: room.trim(),
+      startTime: startTime.trim(),
+      endTime: endTime.trim(),
+    });
   };
 
   if (!period) {return null;}
 
   return (
-    <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.modal} onPress={e => e.stopPropagation()}>
-          <Text style={styles.modalTitle}>
-            {period.day} — Period {period.periodNum}
-          </Text>
+    <>
+      <Modal transparent animationType="fade" visible={visible && !teacherPickerVisible} onRequestClose={onClose}>
+        <Pressable style={styles.overlay} onPress={onClose}>
+          <Pressable style={styles.modal} onPress={e => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>
+              {period.day} — Period {period.periodNum}
+            </Text>
 
-          <Text style={styles.fieldLabel}>Subject *</Text>
-          <View style={styles.inputWrap}>
-            <MaterialCommunityIcons name="book-open-outline" size={16} color={colors.textMuted} />
-            <TextInput
-              style={styles.input}
-              value={subject}
-              onChangeText={setSubject}
-              placeholder="e.g. Mathematics"
-              placeholderTextColor={colors.textSoft}
-              autoFocus
-            />
-          </View>
+            <Text style={styles.fieldLabel}>Subject *</Text>
+            <View style={styles.inputWrap}>
+              <MaterialCommunityIcons name="book-open-outline" size={16} color={colors.textMuted} />
+              <TextInput
+                style={styles.input}
+                value={subject}
+                onChangeText={setSubject}
+                placeholder="e.g. Mathematics"
+                placeholderTextColor={colors.textSoft}
+                autoFocus
+              />
+            </View>
 
-          <Text style={styles.fieldLabel}>Teacher Name</Text>
-          <View style={styles.inputWrap}>
-            <MaterialCommunityIcons name="account-tie-outline" size={16} color={colors.textMuted} />
-            <TextInput
-              style={styles.input}
-              value={teacherName}
-              onChangeText={setTeacherName}
-              placeholder="Teacher name (optional)"
-              placeholderTextColor={colors.textSoft}
-            />
-          </View>
+            <Text style={styles.fieldLabel}>Teacher</Text>
+            <Pressable
+              style={[styles.inputWrap, styles.teacherPickerBtn]}
+              onPress={() => setTeacherPickerVisible(true)}>
+              <MaterialCommunityIcons name="account-tie-outline" size={16} color={colors.textMuted} />
+              <Text style={[styles.input, !selectedTeacher && {color: colors.textSoft}]}>
+                {selectedTeacher ? selectedTeacher.name : 'Tap to select teacher...'}
+              </Text>
+              {selectedTeacher ? (
+                <Pressable onPress={() => setSelectedTeacher(null)}>
+                  <MaterialCommunityIcons name="close-circle" size={16} color={colors.textMuted} />
+                </Pressable>
+              ) : (
+                <MaterialCommunityIcons name="chevron-right" size={16} color={colors.textMuted} />
+              )}
+            </Pressable>
 
-          <Text style={styles.fieldLabel}>Room</Text>
-          <View style={styles.inputWrap}>
-            <MaterialCommunityIcons name="door-open" size={16} color={colors.textMuted} />
-            <TextInput
-              style={styles.input}
-              value={room}
-              onChangeText={setRoom}
-              placeholder="e.g. Room 101"
-              placeholderTextColor={colors.textSoft}
-            />
-          </View>
+            <View style={styles.timeRow}>
+              <View style={styles.timeField}>
+                <Text style={styles.fieldLabel}>Start Time</Text>
+                <View style={styles.inputWrap}>
+                  <MaterialCommunityIcons name="clock-outline" size={14} color={colors.textMuted} />
+                  <TextInput
+                    style={styles.input}
+                    value={startTime}
+                    onChangeText={setStartTime}
+                    placeholder="09:00"
+                    placeholderTextColor={colors.textSoft}
+                    keyboardType="numbers-and-punctuation"
+                  />
+                </View>
+              </View>
+              <View style={styles.timeField}>
+                <Text style={styles.fieldLabel}>End Time</Text>
+                <View style={styles.inputWrap}>
+                  <MaterialCommunityIcons name="clock-check-outline" size={14} color={colors.textMuted} />
+                  <TextInput
+                    style={styles.input}
+                    value={endTime}
+                    onChangeText={setEndTime}
+                    placeholder="09:45"
+                    placeholderTextColor={colors.textSoft}
+                    keyboardType="numbers-and-punctuation"
+                  />
+                </View>
+              </View>
+            </View>
 
-          <View style={styles.modalActions}>
-            {period.subject ? (
-              <Pressable style={styles.clearBtn} onPress={onClear}>
-                <Text style={styles.clearBtnText}>Clear</Text>
+            <Text style={styles.fieldLabel}>Room</Text>
+            <View style={styles.inputWrap}>
+              <MaterialCommunityIcons name="door-open" size={16} color={colors.textMuted} />
+              <TextInput
+                style={styles.input}
+                value={room}
+                onChangeText={setRoom}
+                placeholder="e.g. Room 101"
+                placeholderTextColor={colors.textSoft}
+              />
+            </View>
+
+            <View style={styles.modalActions}>
+              {period.subject ? (
+                <Pressable style={styles.clearBtn} onPress={onClear}>
+                  <Text style={styles.clearBtnText}>Clear</Text>
+                </Pressable>
+              ) : null}
+              <Pressable style={styles.cancelBtn} onPress={onClose}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
               </Pressable>
-            ) : null}
-            <Pressable style={styles.cancelBtn} onPress={onClose}>
-              <Text style={styles.cancelBtnText}>Cancel</Text>
-            </Pressable>
-            <Pressable style={styles.saveBtn} onPress={handleSave}>
-              <Text style={styles.saveBtnText}>Save</Text>
-            </Pressable>
-          </View>
+              <Pressable style={styles.saveBtn} onPress={handleSave}>
+                <Text style={styles.saveBtnText}>Save</Text>
+              </Pressable>
+            </View>
+          </Pressable>
         </Pressable>
-      </Pressable>
-    </Modal>
+      </Modal>
+
+      <TeacherPickerModal
+        visible={teacherPickerVisible}
+        teachers={teachers}
+        onSelect={t => setSelectedTeacher(t)}
+        onClose={() => setTeacherPickerVisible(false)}
+      />
+    </>
   );
 };
 
+// ── Main Screen ───────────────────────────────────────────────────────────────
+
 const TimetableEditorScreen = ({route, navigation}) => {
-  const {sectionId, sectionName, classId, className, branchId} = route.params || {};
+  const {sectionId, sectionName, className, branchId} = route.params || {};
+  const user = useSelector(state => state.auth.user);
+  const role = useSelector(state => state.auth.role);
+  const userId = user?.id;
   const queryClient = useQueryClient();
+
   const [selectedPeriod, setSelectedPeriod] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [publishConfirmVisible, setPublishConfirmVisible] = useState(false);
+  const [unpublishConfirmVisible, setUnpublishConfirmVisible] = useState(false);
+  const [copyPickerVisible, setCopyPickerVisible] = useState(false);
 
+  // Fetch this section's timetable
   const {data: timetable, isLoading, refetch} = useQuery({
     queryKey: ['timetableSection', sectionId],
     queryFn: () => timetableService.getTimetableForSection(sectionId),
     enabled: Boolean(sectionId),
   });
 
+  // Fetch all branch timetables (for conflict detection)
+  const {data: branchTimetables = []} = useQuery({
+    queryKey: ['timetablesForBranch', branchId],
+    queryFn: () => timetableService.getTimetablesForBranch(branchId),
+    enabled: Boolean(branchId),
+  });
+
+  // Fetch teachers for picker
+  const {data: teachersData} = useQuery({
+    queryKey: ['teachersByBranch', branchId],
+    queryFn: () => teacherService.getTeachers({branchId}, {role, branchId}),
+    enabled: Boolean(branchId),
+  });
+  const teachers = useMemo(() => (teachersData?.teachers || []).map(t => ({
+    id: t.id,
+    name: t.user?.name || t.name || '',
+    designation: t.designation || '',
+  })), [teachersData]);
+
+  // Timetable status
+  const timetableStatus = useMemo(
+    () => getTimetableStatus(timetable?.periods || []),
+    [timetable],
+  );
+  const isPublished = timetableStatus.status === TIMETABLE_STATUS.PUBLISHED;
+
   const getPeriod = useCallback((day, periodNum) => {
     const periods = timetable?.periods || [];
     return periods.find(p => p.day === day && p.periodNum === periodNum) ||
-      {day, periodNum, subject: '', teacherName: '', room: ''};
+      {day, periodNum, subject: '', teacherName: '', teacherId: '', room: '', startTime: '', endTime: ''};
   }, [timetable]);
 
   const handleCellPress = period => {
@@ -164,14 +369,15 @@ const TimetableEditorScreen = ({route, navigation}) => {
     setModalVisible(true);
   };
 
-  const handleSavePeriod = async ({subject, teacherName, room}) => {
-    if (!selectedPeriod) {return;}
+  const doSave = async ({subject, teacherId, teacherName, room, startTime, endTime}) => {
     setSaving(true);
     setModalVisible(false);
     try {
-      await timetableService.updatePeriod(sectionId, selectedPeriod.day, selectedPeriod.periodNum, {
-        subject, teacherName, room,
-      });
+      await timetableService.updatePeriodFull(sectionId, selectedPeriod.day, selectedPeriod.periodNum, {
+        subject, teacherId, teacherName, room, startTime, endTime,
+        status: isPublished ? TIMETABLE_STATUS.PUBLISHED : TIMETABLE_STATUS.DRAFT,
+        timetableType: 'REGULAR',
+      }, branchId);
       queryClient.invalidateQueries({queryKey: ['timetableSection', sectionId]});
       queryClient.invalidateQueries({queryKey: ['timetablesForBranch', branchId]});
       refetch();
@@ -182,14 +388,35 @@ const TimetableEditorScreen = ({route, navigation}) => {
     }
   };
 
+  const handleSavePeriod = async payload => {
+    const conflict = timetableService.detectTeacherConflict(
+      payload.teacherId, selectedPeriod.day, selectedPeriod.periodNum,
+      branchTimetables, sectionId,
+    );
+    if (conflict) {
+      Alert.alert(
+        'Conflict Detected',
+        `${payload.teacherName} is already assigned to ${conflict.className} Section ${conflict.sectionName} on ${selectedPeriod.day}, Period ${selectedPeriod.periodNum}.`,
+        [
+          {text: 'Save Anyway', onPress: () => doSave(payload)},
+          {text: 'Cancel', style: 'cancel'},
+        ],
+      );
+      return;
+    }
+    doSave(payload);
+  };
+
   const handleClearPeriod = async () => {
     if (!selectedPeriod) {return;}
     setSaving(true);
     setModalVisible(false);
     try {
-      await timetableService.updatePeriod(sectionId, selectedPeriod.day, selectedPeriod.periodNum, {
-        subject: '', teacherName: '', room: '',
-      });
+      await timetableService.updatePeriodFull(sectionId, selectedPeriod.day, selectedPeriod.periodNum, {
+        subject: '', teacherId: null, teacherName: '', room: '', startTime: '', endTime: '',
+        status: TIMETABLE_STATUS.DRAFT,
+        timetableType: 'REGULAR',
+      }, branchId);
       queryClient.invalidateQueries({queryKey: ['timetableSection', sectionId]});
       queryClient.invalidateQueries({queryKey: ['timetablesForBranch', branchId]});
       refetch();
@@ -200,14 +427,12 @@ const TimetableEditorScreen = ({route, navigation}) => {
     }
   };
 
-  const handleDeleteTimetable = () => {
-    setDeleteConfirmVisible(true);
-  };
+  const handleDeleteTimetable = () => setDeleteConfirmVisible(true);
 
   const confirmDeleteTimetable = async () => {
     setDeleteConfirmVisible(false);
     try {
-      await timetableService.deleteTimetable(sectionId);
+      await timetableService.deleteTimetable(sectionId, branchId);
       queryClient.invalidateQueries({queryKey: ['timetableSection', sectionId]});
       queryClient.invalidateQueries({queryKey: ['timetablesForBranch', branchId]});
       navigation.goBack();
@@ -215,6 +440,61 @@ const TimetableEditorScreen = ({route, navigation}) => {
       Alert.alert('Error', err?.message || 'Failed to delete timetable.');
     }
   };
+
+  const handlePublish = () => setPublishConfirmVisible(true);
+
+  const confirmPublish = async () => {
+    setPublishConfirmVisible(false);
+    setPublishing(true);
+    try {
+      await timetableService.publishTimetable(sectionId, branchId, userId, role);
+      queryClient.invalidateQueries({queryKey: ['timetableSection', sectionId]});
+      queryClient.invalidateQueries({queryKey: ['timetablesForBranch', branchId]});
+      refetch();
+      Alert.alert('Published!', 'The timetable is now visible to students, parents, and teachers.');
+    } catch (err) {
+      Alert.alert('Error', err?.message || 'Failed to publish timetable.');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const handleUnpublish = () => setUnpublishConfirmVisible(true);
+
+  const confirmUnpublish = async () => {
+    setUnpublishConfirmVisible(false);
+    try {
+      await timetableService.unpublishTimetable(sectionId, branchId, role);
+      queryClient.invalidateQueries({queryKey: ['timetableSection', sectionId]});
+      queryClient.invalidateQueries({queryKey: ['timetablesForBranch', branchId]});
+      refetch();
+    } catch (err) {
+      Alert.alert('Error', err?.message || 'Failed to unpublish timetable.');
+    }
+  };
+
+  const handleCopyFrom = async section => {
+    if (!section?.sectionId) {return;}
+    try {
+      const copied = await timetableService.copyTimetable(section.sectionId, sectionId, branchId, role);
+      queryClient.invalidateQueries({queryKey: ['timetableSection', sectionId]});
+      queryClient.invalidateQueries({queryKey: ['timetablesForBranch', branchId]});
+      refetch();
+      Alert.alert('Copied!', `${copied} periods copied from ${section.className} Section ${section.sectionName}.`);
+    } catch (err) {
+      Alert.alert('Error', err?.message || 'Failed to copy timetable.');
+    }
+  };
+
+  // Sections available to copy from (all other sections in branch)
+  const copyableSections = useMemo(
+    () => branchTimetables.filter(tt => tt.sectionId !== sectionId && tt.periods?.some(p => p.subject)),
+    [branchTimetables, sectionId],
+  );
+
+  const canPublish = canPublishTimetable(role);
+  const canDelete = canDeleteTimetable(role);
+  const canManage = canManageTimetable(role);
 
   if (isLoading) {
     return (
@@ -225,6 +505,7 @@ const TimetableEditorScreen = ({route, navigation}) => {
   }
 
   const periodNums = Array.from({length: timetableService.MAX_PERIODS}, (_, i) => i + 1);
+  const {filledCount, totalSlots} = timetableStatus;
 
   return (
     <>
@@ -242,16 +523,62 @@ const TimetableEditorScreen = ({route, navigation}) => {
             </View>
             <View style={styles.headerCopy}>
               <Text style={styles.headerTitle}>{className} — {sectionName}</Text>
-              <Text style={styles.headerSub}>Tap any cell to set subject and teacher</Text>
+              <Text style={styles.headerSub}>
+                {filledCount}/{totalSlots} periods filled
+              </Text>
             </View>
-            {saving ? <ActivityIndicator size="small" color={colors.white} /> : null}
+            {saving || publishing ? <ActivityIndicator size="small" color={colors.white} /> : null}
           </View>
-          {timetable ? (
-            <Pressable style={styles.deleteBtn} onPress={handleDeleteTimetable}>
-              <MaterialCommunityIcons name="delete-outline" size={14} color="rgba(255,255,255,0.7)" />
-              <Text style={styles.deleteBtnText}>Clear All</Text>
-            </Pressable>
-          ) : null}
+
+          {/* Status + Actions row */}
+          <View style={styles.headerActions}>
+            {/* Status badge */}
+            <View style={[styles.headerStatusBadge,
+              {backgroundColor: isPublished ? 'rgba(34,197,94,0.25)' : 'rgba(234,179,8,0.25)'}]}>
+              <MaterialCommunityIcons
+                name={isPublished ? 'check-circle' : 'pencil-circle'}
+                size={12}
+                color={isPublished ? '#86efac' : '#fde047'}
+              />
+              <Text style={[styles.headerStatusText, {color: isPublished ? '#86efac' : '#fde047'}]}>
+                {isPublished ? 'Published' : 'Draft'}
+              </Text>
+            </View>
+
+            <View style={styles.headerActionBtns}>
+              {/* Copy from section */}
+              {canManage && copyableSections.length > 0 ? (
+                <Pressable style={styles.headerActionBtn} onPress={() => setCopyPickerVisible(true)}>
+                  <MaterialCommunityIcons name="content-copy" size={13} color="rgba(255,255,255,0.75)" />
+                  <Text style={styles.headerActionBtnText}>Copy</Text>
+                </Pressable>
+              ) : null}
+
+              {/* Publish / Unpublish */}
+              {canPublish && timetable ? (
+                isPublished ? (
+                  canDelete ? (
+                    <Pressable style={[styles.headerActionBtn, styles.unpublishBtn]} onPress={handleUnpublish}>
+                      <MaterialCommunityIcons name="eye-off-outline" size={13} color={colors.white} />
+                      <Text style={styles.headerActionBtnText}>Unpublish</Text>
+                    </Pressable>
+                  ) : null
+                ) : (
+                  <Pressable style={[styles.headerActionBtn, styles.publishBtn]} onPress={handlePublish}>
+                    <MaterialCommunityIcons name="send-check-outline" size={13} color={colors.white} />
+                    <Text style={styles.headerActionBtnText}>Publish</Text>
+                  </Pressable>
+                )
+              ) : null}
+
+              {/* Delete */}
+              {canDelete && timetable ? (
+                <Pressable style={styles.deleteBtn} onPress={handleDeleteTimetable}>
+                  <MaterialCommunityIcons name="delete-outline" size={14} color="rgba(255,255,255,0.6)" />
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
         </Animated.View>
 
         {/* ── Grid ── */}
@@ -276,18 +603,42 @@ const TimetableEditorScreen = ({route, navigation}) => {
                 <PeriodCell
                   key={`${day}_${pNum}`}
                   period={getPeriod(day, pNum)}
-                  onPress={handleCellPress}
+                  onPress={canManage ? handleCellPress : () => {}}
                 />
               ))}
             </View>
           ))}
         </Animated.View>
 
+        {/* ── Validation summary ── */}
+        {timetable && canManage ? (() => {
+          const validation = timetableService.validateTimetable(timetable.periods);
+          if (validation.errors.length === 0 && validation.warnings.length === 0) {return null;}
+          return (
+            <Animated.View entering={FadeInDown.delay(120).duration(240).springify()} style={styles.validationBox}>
+              {validation.errors.map((e, i) => (
+                <View key={i} style={styles.validationRow}>
+                  <MaterialCommunityIcons name="alert-circle-outline" size={13} color={colors.danger} />
+                  <Text style={[styles.validationText, {color: colors.danger}]}>{e.message}</Text>
+                </View>
+              ))}
+              {validation.warnings.map((w, i) => (
+                <View key={i} style={styles.validationRow}>
+                  <MaterialCommunityIcons name="information-outline" size={13} color={colors.warning} />
+                  <Text style={[styles.validationText, {color: colors.warning}]}>{w}</Text>
+                </View>
+              ))}
+            </Animated.View>
+          );
+        })() : null}
+
         {/* ── Legend ── */}
         <View style={styles.legendRow}>
           <MaterialCommunityIcons name="information-outline" size={12} color={colors.textMuted} />
           <Text style={styles.legendText}>
-            Tap empty cell to assign · Tap filled cell to edit or clear
+            {canManage
+              ? 'Tap empty cell to assign · Tap filled cell to edit or clear'
+              : 'View-only mode'}
           </Text>
         </View>
 
@@ -297,10 +648,19 @@ const TimetableEditorScreen = ({route, navigation}) => {
       <PeriodModal
         visible={modalVisible}
         period={selectedPeriod}
+        teachers={teachers}
         onSave={handleSavePeriod}
         onClear={handleClearPeriod}
         onClose={() => setModalVisible(false)}
       />
+
+      <SectionPickerModal
+        visible={copyPickerVisible}
+        sections={copyableSections}
+        onSelect={handleCopyFrom}
+        onClose={() => setCopyPickerVisible(false)}
+      />
+
       <ConfirmationModal
         visible={deleteConfirmVisible}
         title="Delete Timetable?"
@@ -311,6 +671,27 @@ const TimetableEditorScreen = ({route, navigation}) => {
         onConfirm={confirmDeleteTimetable}
         onCancel={() => setDeleteConfirmVisible(false)}
       />
+
+      <ConfirmationModal
+        visible={publishConfirmVisible}
+        title="Publish Timetable?"
+        message="Once published, students, parents, and teachers will immediately see this timetable."
+        confirmLabel="Publish Now"
+        cancelLabel="Cancel"
+        onConfirm={confirmPublish}
+        onCancel={() => setPublishConfirmVisible(false)}
+      />
+
+      <ConfirmationModal
+        visible={unpublishConfirmVisible}
+        title="Unpublish Timetable?"
+        message="The timetable will be hidden from students, parents, and teachers until republished."
+        confirmLabel="Unpublish"
+        cancelLabel="Cancel"
+        isDestructive
+        onConfirm={confirmUnpublish}
+        onCancel={() => setUnpublishConfirmVisible(false)}
+      />
     </>
   );
 };
@@ -320,6 +701,7 @@ const styles = StyleSheet.create({
   content: {padding: spacing.md},
   center: {alignItems: 'center', flex: 1, justifyContent: 'center'},
 
+  // ── Header ──
   header: {
     backgroundColor: colors.primary,
     borderRadius: radius.hero,
@@ -337,7 +719,7 @@ const styles = StyleSheet.create({
     top: -30,
     width: 120,
   },
-  headerRow: {alignItems: 'center', flexDirection: 'row', gap: spacing.md},
+  headerRow: {alignItems: 'center', flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md},
   headerIcon: {
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.18)',
@@ -348,16 +730,38 @@ const styles = StyleSheet.create({
   headerCopy: {flex: 1},
   headerTitle: {color: colors.white, fontSize: 16, fontWeight: '800'},
   headerSub: {color: 'rgba(255,255,255,0.65)', fontSize: 11, marginTop: 2},
-  deleteBtn: {
+
+  headerActions: {alignItems: 'center', flexDirection: 'row', gap: spacing.sm},
+  headerStatusBadge: {
     alignItems: 'center',
-    alignSelf: 'flex-start',
+    borderRadius: radius.pill,
     flexDirection: 'row',
     gap: 4,
-    marginTop: spacing.sm,
-    opacity: 0.75,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  deleteBtnText: {color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '700'},
+  headerStatusText: {fontSize: 10, fontWeight: '800'},
+  headerActionBtns: {alignItems: 'center', flex: 1, flexDirection: 'row', gap: spacing.sm, justifyContent: 'flex-end'},
+  headerActionBtn: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: radius.card,
+    flexDirection: 'row',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  publishBtn: {backgroundColor: 'rgba(34,197,94,0.35)'},
+  unpublishBtn: {backgroundColor: 'rgba(239,68,68,0.3)'},
+  headerActionBtnText: {color: colors.white, fontSize: 11, fontWeight: '700'},
+  deleteBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    opacity: 0.7,
+    paddingHorizontal: 4,
+  },
 
+  // ── Grid ──
   grid: {
     ...shadows.clay,
     backgroundColor: colors.surface,
@@ -392,7 +796,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   dayHeaderText: {color: colors.text, fontSize: 10, fontWeight: '800'},
-
   cell: {
     alignItems: 'center',
     borderBottomColor: colors.borderLight,
@@ -404,15 +807,29 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     margin: 2,
-    minHeight: 54,
-    padding: 4,
+    minHeight: 58,
+    padding: 3,
   },
   cellEmpty: {
     backgroundColor: colors.background,
     borderColor: `${colors.border}88`,
   },
-  cellSubject: {fontSize: 9, fontWeight: '800', textAlign: 'center'},
-  cellTeacher: {color: colors.textMuted, fontSize: 8, marginTop: 2, textAlign: 'center'},
+  cellSubject: {fontSize: 8, fontWeight: '800', textAlign: 'center'},
+  cellTeacher: {color: colors.textMuted, fontSize: 7, marginTop: 1, textAlign: 'center'},
+  cellTime: {color: colors.textSoft, fontSize: 7, marginTop: 1, textAlign: 'center'},
+
+  // ── Validation ──
+  validationBox: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.card,
+    borderWidth: 1.5,
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+  },
+  validationRow: {alignItems: 'flex-start', flexDirection: 'row', gap: spacing.xs},
+  validationText: {flex: 1, fontSize: 11, lineHeight: 16},
 
   legendRow: {
     alignItems: 'center',
@@ -423,9 +840,10 @@ const styles = StyleSheet.create({
   },
   legendText: {...typography.caption, color: colors.textMuted, textAlign: 'center'},
 
+  // ── Period Modal ──
   overlay: {
     alignItems: 'center',
-    backgroundColor: 'rgba(14,165,233,0.08)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     flex: 1,
     justifyContent: 'center',
     padding: spacing.xl,
@@ -467,6 +885,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     paddingVertical: 4,
   },
+  teacherPickerBtn: {cursor: 'pointer'},
+  timeRow: {flexDirection: 'row', gap: spacing.sm},
+  timeField: {flex: 1},
   modalActions: {
     flexDirection: 'row',
     gap: spacing.sm,
@@ -474,15 +895,16 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
   },
   clearBtn: {
+    alignItems: 'center',
     borderColor: colors.danger,
     borderRadius: radius.card,
     borderWidth: 1.5,
     flex: 1,
     paddingVertical: spacing.sm,
-    alignItems: 'center',
   },
   clearBtnText: {color: colors.danger, fontSize: 13, fontWeight: '700'},
   cancelBtn: {
+    alignItems: 'center',
     borderColor: colors.border,
     borderRadius: radius.card,
     borderWidth: 1.5,
@@ -498,6 +920,86 @@ const styles = StyleSheet.create({
     ...shadows.fab,
   },
   saveBtnText: {color: colors.white, fontSize: 13, fontWeight: '800'},
+
+  // ── Teacher Picker ──
+  pickerOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  pickerSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.hero,
+    borderTopRightRadius: radius.hero,
+    maxHeight: '75%',
+    ...shadows.clayModal,
+  },
+  pickerHeader: {
+    alignItems: 'center',
+    borderBottomColor: colors.border,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: spacing.lg,
+  },
+  pickerTitle: {...typography.subtitle, color: colors.text},
+  pickerClose: {padding: 4},
+  pickerSearch: {
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+    borderRadius: radius.card,
+    borderWidth: 1.5,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    margin: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  pickerSearchInput: {color: colors.text, flex: 1, fontSize: 14},
+  teacherRow: {
+    alignItems: 'center',
+    borderBottomColor: colors.borderLight,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  teacherAvatar: {
+    alignItems: 'center',
+    backgroundColor: colors.primaryFaint,
+    borderRadius: radius.pill,
+    height: 38,
+    justifyContent: 'center',
+    width: 38,
+  },
+  teacherAvatarText: {color: colors.primary, fontSize: 15, fontWeight: '800'},
+  teacherInfo: {flex: 1},
+  teacherName: {...typography.body, color: colors.text, fontWeight: '600'},
+  teacherDes: {...typography.caption, color: colors.textMuted},
+  pickerEmpty: {alignItems: 'center', padding: spacing.xxl},
+  pickerEmptyText: {...typography.caption, color: colors.textMuted},
+
+  // ── Section Picker ──
+  sectionPickerModal: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.card,
+    maxHeight: '70%',
+    padding: spacing.lg,
+    width: '100%',
+    ...shadows.clayModal,
+  },
+  sectionPickerSub: {...typography.caption, color: colors.textMuted, marginBottom: spacing.md, textAlign: 'center'},
+  sectionPickerList: {maxHeight: 280},
+  sectionPickerRow: {
+    alignItems: 'center',
+    borderBottomColor: colors.borderLight,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+  },
+  sectionPickerLabel: {...typography.body, color: colors.text, flex: 1},
 });
 
 export default TimetableEditorScreen;

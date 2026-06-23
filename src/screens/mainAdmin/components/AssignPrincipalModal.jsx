@@ -26,12 +26,15 @@ const AssignPrincipalModal = ({branchId, visible, onDismiss, onAssigned}) => {
     try {
       setSaving(true);
       setError('');
-      await mainAdminService.createAndAssignPrincipal({branchId, ...form});
-      Toast.show({type: 'success', text1: 'Principal created and assigned'});
+      const result = await mainAdminService.createAndAssignPrincipal({branchId, ...form});
+      Toast.show({
+        type: 'success',
+        text1: result.isExistingUser ? 'Principal reassigned successfully' : 'Principal created and assigned',
+      });
       onAssigned?.();
       onDismiss?.();
     } catch (saveError) {
-      setError(saveError.message || 'Unable to create principal');
+      setError(saveError.message || 'Unable to assign principal');
     } finally {
       setSaving(false);
     }
@@ -41,7 +44,7 @@ const AssignPrincipalModal = ({branchId, visible, onDismiss, onAssigned}) => {
     <Portal>
       <Modal visible={visible} onDismiss={onDismiss} contentContainerStyle={styles.modal}>
         <ScrollView keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>Create Principal</Text>
+          <Text style={styles.title}>Assign Principal</Text>
           <View style={styles.inputWrap}>
             <MaterialCommunityIcons name="account-outline" size={14} color={colors.textMuted} style={styles.inputIcon} />
             <TextInput
@@ -88,14 +91,14 @@ const AssignPrincipalModal = ({branchId, visible, onDismiss, onAssigned}) => {
             </Pressable>
             <Pressable
               onPress={handleSave}
-              disabled={!form.fullName || !form.phoneNumber || saving}
+              disabled={!form.phoneNumber || saving}
               style={({pressed}) => [
                 styles.submitBtn,
-                (!form.fullName || !form.phoneNumber || saving) && {opacity: 0.5},
-                pressed && form.fullName && form.phoneNumber && !saving && {opacity: 0.88},
+                (!form.phoneNumber || saving) && {opacity: 0.5},
+                pressed && form.phoneNumber && !saving && {opacity: 0.88},
               ]}>
               {saving ? <ActivityIndicator size="small" color={colors.white} /> : null}
-              <Text style={styles.submitBtnText}>{saving ? 'Creating…' : 'Create'}</Text>
+              <Text style={styles.submitBtnText}>{saving ? 'Assigning…' : 'Assign'}</Text>
             </Pressable>
           </View>
         </ScrollView>

@@ -156,6 +156,8 @@ const DashboardScreen = ({navigation}) => {
           <NavRow icon="account-switch-outline"  label="Assign Teachers"   desc="Assign teachers to sections"   color={colors.info}      onPress={() => navigation.navigate('AssignTeachers')}   delay={120} />
           <View style={styles.div} />
           <NavRow icon="calendar-remove-outline" label="Holiday Management" desc="School holidays & public holidays" color={colors.danger} onPress={() => navigation.navigate('HolidayManagement')} delay={160} />
+          <View style={styles.div} />
+          <NavRow icon="calendar-clock-outline"  label="Timetable"          desc="Manage wing class timetables"      color={colors.purple} onPress={() => navigation.navigate('Timetable')}        delay={200} />
         </Animated.View>
 
         {/* ── Management ── */}

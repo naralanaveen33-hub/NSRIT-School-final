@@ -216,6 +216,7 @@ const DashboardScreen = ({navigation}) => {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.qaStrip}>
           <QuickAction icon="chart-donut"          label="Attendance"   color={colors.success}   delay={0}   onPress={() => navigation.navigate('Attendance', selectedChild ? {studentId: selectedChild.id} : undefined)} />
+          <QuickAction icon="file-chart-outline"   label="Results"      color={colors.info}      delay={30}  onPress={() => navigation.navigate('Results')} />
           <QuickAction icon="cash-multiple"        label="Fee Ledger"   color={colors.warning}   delay={60}  onPress={() => navigation.navigate('FeeLedger')} />
           <QuickAction icon="cash-register"        label="Pay Fees"     color={colors.success}   delay={90}  onPress={() => navigation.navigate('Payments')} />
           <QuickAction icon="calendar-month"       label="Timetable"   color={colors.secondary} delay={90}  onPress={() => navigation.navigate('Timetable')} />
